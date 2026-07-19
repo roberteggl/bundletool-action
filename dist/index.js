@@ -34653,7 +34653,7 @@ function emitWarnings(logger, warnings) {
 }
 function logPlannedSteps(logger, config) {
   logger.info(
-    "Milestone 6 \u2014 build-apks, universal APK extract, and device-specific extract-apks."
+    "Pipeline: build-apks, universal APK extract, and device-specific extract-apks."
   );
   logger.info(`Command: ${config.command}`);
   logger.info(`Mode: ${config.mode}`);

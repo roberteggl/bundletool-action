@@ -21,7 +21,7 @@ function emitWarnings(logger: Logger, warnings: ConfigWarning[]): void {
 
 function logPlannedSteps(logger: Logger, config: ActionConfig): void {
   logger.info(
-    'Milestone 6 — build-apks, universal APK extract, and device-specific extract-apks.'
+    'Pipeline: build-apks, universal APK extract, and device-specific extract-apks.'
   )
   logger.info(`Command: ${config.command}`)
   logger.info(`Mode: ${config.mode}`)

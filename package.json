@@ -1,7 +1,7 @@
 {
   "name": "bundletool-action",
   "description": "Convert Android App Bundles (.aab) to APKs using Google bundletool",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "author": "Robert Eggl",
   "type": "module",
   "private": true,

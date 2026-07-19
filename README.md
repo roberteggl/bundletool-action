@@ -8,8 +8,8 @@
 GitHub Action that converts Android App Bundles (`.aab`) into APKs using
 [Google bundletool](https://developer.android.com/tools/bundletool).
 
-> **Status:** Milestone 6 — AAB → universal APK, plus device-specific
-> `extract-apks` from an existing `.apks` archive.
+> **Status:** v0.1 — early release. Pin `roberteggl/bundletool-action@v0.1.0`
+> (or `@v0` for the latest 0.x).
 
 ## Features
 
@@ -33,7 +33,7 @@ GitHub Action that converts Android App Bundles (`.aab`) into APKs using
 
 - name: Build universal APK from AAB
   id: bundletool
-  uses: roberteggl/bundletool-action@main
+  uses: roberteggl/bundletool-action@v0.1.0
   with:
     aab-file: app/build/outputs/bundle/release/app-release.aab
     bundletool-version: '1.18.3'
@@ -57,7 +57,7 @@ GitHub Action that converts Android App Bundles (`.aab`) into APKs using
 ```yaml
 - name: Extract APKs for a device
   id: extract
-  uses: roberteggl/bundletool-action@main
+  uses: roberteggl/bundletool-action@v0.1.0
   with:
     command: extract-apks
     apks-file: app-release.apks
@@ -77,7 +77,7 @@ executing:
 
 ```yaml
 - name: Plan bundletool conversion
-  uses: roberteggl/bundletool-action@main
+  uses: roberteggl/bundletool-action@v0.1.0
   with:
     aab-file: app/build/outputs/bundle/release/app-release.aab
     dry-run: true
@@ -164,7 +164,7 @@ use kebab-case and signing is optional.
     distribution: temurin
     java-version: '17'
 
-- uses: roberteggl/bundletool-action@v1
+- uses: roberteggl/bundletool-action@v0.1.0
   id: bundletool
   with:
     aab-file: app/build/outputs/bundle/release/app-release.aab
@@ -181,7 +181,7 @@ use kebab-case and signing is optional.
 ```
 
 Add `setup-java` before the action — Java is not bundled. Pin
-`roberteggl/bundletool-action@v1` (or a specific `v1.x.x` tag) instead of
+`roberteggl/bundletool-action@v0.1.0` (or `@v0` for the latest 0.x) instead of
 `@main`.
 
 ### Input mapping
@@ -245,41 +245,6 @@ Run the action locally:
 cp .env.example .env
 pnpm local-action
 ```
-
-## Roadmap
-
-| Milestone | Scope                                 |
-| --------- | ------------------------------------- |
-| M0        | Scaffold, inputs, dry-run planning ✅ |
-| M1        | Hardened config & logging ✅          |
-| M2        | Bundletool installer + cache + SHA ✅ |
-| M3        | Signing materialization ✅            |
-| M4        | `build-apks` execution ✅             |
-| M5        | Universal APK extraction ✅           |
-| M6        | Device-specific extraction ✅         |
-| M7        | Hardening & docs                      |
-| M8        | Release automation ✅                 |
-
-## Releasing
-
-Releases are automated when a `v*` tag is pushed. The workflow validates the
-build, generates release notes from [Conventional Commits](https://www.conventionalcommits.org/)
-with [git-cliff](https://git-cliff.org/), publishes a GitHub Release, and moves
-the major version tag (for example `v1`) to the new release.
-
-```bash
-# Ensure dist/ is up to date and committed
-pnpm bundle
-git add dist/
-git commit -m "chore: bundle dist for release"
-
-# Tag and push (use semver, e.g. v1.0.0)
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-Use [Conventional Commits](https://www.conventionalcommits.org/) on `main` so
-release notes are grouped correctly (`feat:`, `fix:`, `docs:`, etc.).
 
 ## License
 
