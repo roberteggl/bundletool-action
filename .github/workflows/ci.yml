@@ -69,11 +69,19 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Create Android debug keystore
+        run: |
+          mkdir -p ~/.android
+          keytool -genkey -v -keystore ~/.android/debug.keystore \
+            -storepass android -alias androiddebugkey -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
       - name: Test Local Action (dry-run)
         id: test-action-dry-run
         uses: ./
         with:
-          aab-file: app/build/outputs/bundle/release/app-release.aab
+          aab-file: __fixtures__/android/install-time-permanent-modules.aab
           sign: false
           dry-run: true
           verbose: true
@@ -87,21 +95,50 @@ jobs:
           echo "Planned APKS ${{ steps.test-action-dry-run.outputs.apks-path }}"
           echo "Planned APK ${{ steps.test-action-dry-run.outputs.apk-path }}"
 
-      - name: Test Local Action (install)
-        id: test-action-install
-        continue-on-error: true
+      - name: Build universal APK from fixture AAB
+        id: test-universal-apk
         uses: ./
         with:
-          aab-file: app/build/outputs/bundle/release/app-release.aab
+          aab-file: __fixtures__/android/install-time-permanent-modules.aab
           bundletool-version: '1.18.3'
           sign: false
-          dry-run: false
+          mode: universal
+          extract-universal-apk: true
+          keep-apks: true
           verbose: true
 
-      - name: Assert install outputs
+      - name: Assert universal APK outputs
         run: |
-          test -n "${{ steps.test-action-install.outputs.bundletool-version }}"
-          test -f "${{ steps.test-action-install.outputs.bundletool-path }}"
-          java -jar "${{ steps.test-action-install.outputs.bundletool-path }}" version
-          # No real AAB in this repo yet; build-apks is expected to fail after install.
-          test "${{ steps.test-action-install.outcome }}" = "failure"
+          test -n "${{ steps.test-universal-apk.outputs.bundletool-version }}"
+          test -f "${{ steps.test-universal-apk.outputs.bundletool-path }}"
+          test -f "${{ steps.test-universal-apk.outputs.apks-path }}"
+          test -f "${{ steps.test-universal-apk.outputs.apk-path }}"
+          file "${{ steps.test-universal-apk.outputs.apk-path }}" | grep -q 'Zip archive'
+
+      - name: Build split APK set for extract-apks
+        id: test-build-apks
+        uses: ./
+        with:
+          aab-file: __fixtures__/android/install-time-permanent-modules.aab
+          bundletool-version: '1.18.3'
+          sign: false
+          mode: default
+          extract-universal-apk: false
+          keep-apks: true
+          verbose: true
+
+      - name: Extract device-specific APKs
+        id: test-extract-apks
+        uses: ./
+        with:
+          command: extract-apks
+          apks-file: ${{ steps.test-build-apks.outputs.apks-path }}
+          device-spec: __fixtures__/android/pixel2_spec.json
+          output-dir: ${{ runner.temp }}/extracted-apks
+          bundletool-version: '1.18.3'
+          verbose: true
+
+      - name: Assert extract-apks outputs
+        run: |
+          test -d "${{ steps.test-extract-apks.outputs.output-dir }}"
+          test "$(find "${{ steps.test-extract-apks.outputs.output-dir }}" -name '*.apk' | wc -l)" -ge 1

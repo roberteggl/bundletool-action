@@ -130,6 +130,97 @@ set (prefer `mode: default` for device-targeted builds).
 | `bundletool-version` | Resolved bundletool version           |
 | `bundletool-path`    | Path to the bundletool JAR            |
 
+## Migration from `ethanneff/bundletool-action`
+
+This action is a modern replacement for
+[`ethanneff/bundletool-action`](https://github.com/ethanneff/bundletool-action).
+The common case — signed universal APK from an AAB — works the same; inputs
+use kebab-case and signing is optional.
+
+### Before
+
+```yaml
+- uses: ethanneff/bundletool-action@master
+  id: bundletool
+  with:
+    aabFile: app/build/outputs/bundle/release/app-release.aab
+    base64Keystore: ${{ secrets.KEYSTORE_BASE64 }}
+    keystorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+    keystoreAlias: ${{ secrets.KEY_ALIAS }}
+    keyPassword: ${{ secrets.KEY_PASSWORD }}
+    bundleToolVersion: '1.18.3'
+
+- uses: actions/upload-artifact@v4
+  with:
+    name: app-apk
+    path: app-release.apk
+```
+
+### After
+
+```yaml
+- uses: actions/setup-java@v5
+  with:
+    distribution: temurin
+    java-version: '17'
+
+- uses: roberteggl/bundletool-action@v1
+  id: bundletool
+  with:
+    aab-file: app/build/outputs/bundle/release/app-release.aab
+    keystore-base64: ${{ secrets.KEYSTORE_BASE64 }}
+    keystore-password: ${{ secrets.KEYSTORE_PASSWORD }}
+    key-alias: ${{ secrets.KEY_ALIAS }}
+    key-password: ${{ secrets.KEY_PASSWORD }}
+    bundletool-version: '1.18.3'
+
+- uses: actions/upload-artifact@v4
+  with:
+    name: app-apk
+    path: ${{ steps.bundletool.outputs.apk-path }}
+```
+
+Add `setup-java` before the action — Java is not bundled. Pin
+`roberteggl/bundletool-action@v1` (or a specific `v1.x.x` tag) instead of
+`@main`.
+
+### Input mapping
+
+| `ethanneff/bundletool-action` | This action           | Notes                          |
+| ----------------------------- | --------------------- | ------------------------------ |
+| `aabFile`                     | `aab-file`            | Required for `build-apks`      |
+| `base64Keystore`              | `keystore-base64`     | Or use `keystore` (file path)  |
+| `keystorePassword`            | `keystore-password`   | Required when signing          |
+| `keystoreAlias`               | `key-alias`           | Required when signing          |
+| `keyPassword`                 | `key-password`        | Defaults to `keystore-password` |
+| `bundleToolVersion`           | `bundletool-version`  | Default `latest`               |
+
+### Output mapping
+
+| `ethanneff/bundletool-action` | This action    | Notes                                |
+| ----------------------------- | -------------- | ------------------------------------ |
+| `apkPath`                     | `apk-path`     | Use the output instead of a hardcoded path |
+| _(none)_                      | `apks-path`    | `.apks` archive (kept by default)    |
+| _(none)_                      | `bundletool-version` | Resolved bundletool version    |
+| _(none)_                      | `bundletool-path`    | Path to the JAR on the runner  |
+
+### Behavior differences
+
+- **Signing is optional** — set `sign: false` to build without a keystore (for
+  example in tests). When signing, provide the same secrets as before.
+- **Default output names** — `{aab-basename}.apk` and `{aab-basename}.apks` in
+  the working directory, same as the original action.
+- **Keeps `.apks`** — the intermediate archive is retained (`keep-apks: true`).
+  Set `keep-apks: false` to delete it after extracting the universal APK.
+- **No shell `unzip`** — extraction runs in Node; no dependency on system
+  `unzip`/`mv`.
+- **Bundletool caching** — the JAR is cached via `@actions/tool-cache`
+  (`cache: true` by default).
+- **More commands** — `command: extract-apks` for device-specific APKs from an
+  existing `.apks` file; `dry-run` and `verbose` for debugging.
+- **Runtime** — Node 24 (vs Node 20). Runs on `ubuntu-latest` and `macos`;
+  Windows is not explicitly tested.
+
 ## Development
 
 Requires Node.js 24+ and [pnpm](https://pnpm.io/) 10+.
