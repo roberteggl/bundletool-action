@@ -7,6 +7,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 vi.mock('@actions/core', () => import('../__fixtures__/core.js'))
 
 const { parseInputs } = await import('../src/config/inputs.js')
+const { validateConfig } = await import('../src/config/validate.js')
 
 function mockInputs(values: Record<string, string>): void {
   core.getInput.mockImplementation((name: string) => values[name] ?? '')
@@ -235,5 +236,176 @@ describe('parseInputs', () => {
     })
 
     expect(() => parseInputs()).toThrow(/Invalid boolean/)
+  })
+
+  it('warns when device-spec is set with universal mode', () => {
+    mockInputs({
+      'aab-file': 'app.aab',
+      'device-spec': 'device.json',
+      mode: 'universal',
+      sign: 'false'
+    })
+
+    const { warnings } = parseInputs()
+    expect(
+      warnings.some((w) =>
+        w.message.includes('device-spec is set with mode=universal')
+      )
+    ).toBe(true)
+  })
+
+  it('warns when extract-universal-apk is set for extract-apks', () => {
+    mockInputs({
+      command: 'extract-apks',
+      'apks-file': 'app.apks',
+      'device-spec': 'device.json',
+      'output-dir': 'out',
+      'extract-universal-apk': 'true',
+      sign: 'false'
+    })
+
+    const { warnings } = parseInputs()
+    expect(
+      warnings.some((w) =>
+        w.message.includes(
+          'extract-universal-apk is ignored when command is "extract-apks"'
+        )
+      )
+    ).toBe(true)
+  })
+
+  it('requires output-dir for extract-apks', () => {
+    mockInputs({
+      command: 'extract-apks',
+      'apks-file': 'app.apks',
+      'device-spec': 'device.json',
+      sign: 'false'
+    })
+
+    expect(() => parseInputs()).toThrow(/output-dir/)
+  })
+
+  it('rejects an empty working-directory', () => {
+    expect(() =>
+      validateConfig({
+        command: 'build-apks',
+        aabFile: 'app.aab',
+        mode: 'universal',
+        bundletool: { version: 'latest' },
+        cache: true,
+        javaBin: 'java',
+        signing: {
+          signRequested: false,
+          hasKeystoreMaterial: false,
+          enabled: false
+        },
+        extractUniversalApk: true,
+        keepApks: true,
+        extraArgs: [],
+        workingDirectory: '   ',
+        dryRun: false,
+        verbose: false
+      })
+    ).toThrow(/working-directory/)
+  })
+
+  it('rejects an empty java-bin', () => {
+    expect(() =>
+      validateConfig({
+        command: 'build-apks',
+        aabFile: 'app.aab',
+        mode: 'universal',
+        bundletool: { version: 'latest' },
+        cache: true,
+        javaBin: '   ',
+        signing: {
+          signRequested: false,
+          hasKeystoreMaterial: false,
+          enabled: false
+        },
+        extractUniversalApk: true,
+        keepApks: true,
+        extraArgs: [],
+        workingDirectory: '.',
+        dryRun: false,
+        verbose: false
+      })
+    ).toThrow(/java-bin/)
+  })
+
+  it('rejects malformed bundletool URLs', () => {
+    expect(() =>
+      validateConfig({
+        command: 'build-apks',
+        aabFile: 'app.aab',
+        mode: 'universal',
+        bundletool: { version: 'latest', url: 'not a url' },
+        cache: true,
+        javaBin: 'java',
+        signing: {
+          signRequested: false,
+          hasKeystoreMaterial: false,
+          enabled: false
+        },
+        extractUniversalApk: true,
+        keepApks: true,
+        extraArgs: [],
+        workingDirectory: '.',
+        dryRun: false,
+        verbose: false
+      })
+    ).toThrow(/Invalid bundletool-url/)
+  })
+
+  it('requires keystore-password when signing is enabled', () => {
+    expect(() =>
+      validateConfig({
+        command: 'build-apks',
+        aabFile: 'app.aab',
+        mode: 'universal',
+        bundletool: { version: 'latest' },
+        cache: true,
+        javaBin: 'java',
+        signing: {
+          keystore: 'release.jks',
+          keyAlias: 'upload',
+          signRequested: true,
+          hasKeystoreMaterial: true,
+          enabled: true
+        },
+        extractUniversalApk: true,
+        keepApks: true,
+        extraArgs: [],
+        workingDirectory: '.',
+        dryRun: false,
+        verbose: false
+      })
+    ).toThrow(/keystore-password/)
+  })
+
+  it('requires key-alias when signing is enabled', () => {
+    expect(() =>
+      validateConfig({
+        command: 'build-apks',
+        aabFile: 'app.aab',
+        mode: 'universal',
+        bundletool: { version: 'latest' },
+        cache: true,
+        javaBin: 'java',
+        signing: {
+          keystore: 'release.jks',
+          keystorePassword: 'secret',
+          signRequested: true,
+          hasKeystoreMaterial: true,
+          enabled: true
+        },
+        extractUniversalApk: true,
+        keepApks: true,
+        extraArgs: [],
+        workingDirectory: '.',
+        dryRun: false,
+        verbose: false
+      })
+    ).toThrow(/key-alias/)
   })
 })

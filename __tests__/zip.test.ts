@@ -36,6 +36,25 @@ describe('extractZipEntry', () => {
     await expect(readFile(destPath)).resolves.toEqual(payload)
   })
 
+  it('fails when the archive cannot be read', async () => {
+    await expect(
+      extractZipEntry(
+        join(dir, 'missing.apks'),
+        'universal.apk',
+        join(dir, 'out.apk')
+      )
+    ).rejects.toThrow(/Failed to read archive/)
+  })
+
+  it('fails when the archive is not a valid zip', async () => {
+    const zipPath = join(dir, 'broken.apks')
+    await writeFile(zipPath, 'not-a-zip')
+
+    await expect(
+      extractZipEntry(zipPath, 'universal.apk', join(dir, 'out.apk'))
+    ).rejects.toThrow(/Failed to unzip/)
+  })
+
   it('fails when the entry is missing', async () => {
     const zipPath = join(dir, 'app.apks')
     await writeFile(zipPath, zipSync({ 'other.apk': Buffer.from('x') }))

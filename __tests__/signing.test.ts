@@ -167,4 +167,81 @@ describe('materializeSigning', () => {
 
     await expect(access(keystorePath)).rejects.toThrow()
   })
+
+  it('fails when signing is enabled without required passwords', async () => {
+    await expect(
+      materializeSigning(enabledSigning({ keystorePassword: undefined }), {
+        workingDirectory: workspace,
+        dryRun: false,
+        cleanup,
+        logger
+      })
+    ).rejects.toThrow(/keystore-password, key-alias, and key-password/)
+  })
+
+  it('fails when keystore-base64 decodes to an empty file', async () => {
+    await expect(
+      materializeSigning(enabledSigning({ keystoreBase64: '=' }), {
+        workingDirectory: workspace,
+        dryRun: false,
+        cleanup,
+        logger
+      })
+    ).rejects.toThrow(/decoded to an empty keystore/)
+  })
+
+  it('fails when signing is enabled without keystore material', async () => {
+    await expect(
+      materializeSigning(
+        enabledSigning({ keystore: undefined, keystoreBase64: undefined }),
+        {
+          workingDirectory: workspace,
+          dryRun: false,
+          cleanup,
+          logger
+        }
+      )
+    ).rejects.toThrow(/neither "keystore" nor "keystore-base64"/)
+  })
+
+  it('accepts an absolute keystore path', async () => {
+    const keystorePath = join(workspace, 'release.jks')
+    await writeFile(keystorePath, Buffer.from('keystore-bytes'))
+
+    const result = await materializeSigning(
+      enabledSigning({ keystore: keystorePath }),
+      {
+        workingDirectory: workspace,
+        dryRun: false,
+        cleanup,
+        logger
+      }
+    )
+
+    expect(result?.keystorePath).toBe(keystorePath)
+    expect(logger.info).toHaveBeenCalledWith(
+      `Using keystore at ${keystorePath}`
+    )
+  })
+
+  it('fails when keystore-base64 cannot be decoded', async () => {
+    const from = Buffer.from
+    vi.spyOn(Buffer, 'from').mockImplementation((value, encoding) => {
+      if (encoding === 'base64') {
+        throw new Error('invalid base64')
+      }
+      return from(value, encoding)
+    })
+
+    await expect(
+      materializeSigning(enabledSigning({ keystoreBase64: 'YWJj' }), {
+        workingDirectory: workspace,
+        dryRun: false,
+        cleanup,
+        logger
+      })
+    ).rejects.toThrow(/Failed to decode keystore-base64/)
+
+    vi.restoreAllMocks()
+  })
 })

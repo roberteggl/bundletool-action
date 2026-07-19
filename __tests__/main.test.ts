@@ -232,4 +232,167 @@ describe('main.ts', () => {
     )
     expect(installer.ensureBundletool).not.toHaveBeenCalled()
   })
+
+  it('fails when bundletool install returns no jar path', async () => {
+    mockInputs({
+      'aab-file': 'app.aab',
+      command: 'build-apks',
+      sign: 'false',
+      'dry-run': 'false'
+    })
+
+    installer.ensureBundletool.mockResolvedValue({
+      version: '1.18.3',
+      downloadUrl:
+        'https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar',
+      fromCache: false,
+      dryRun: false
+    })
+
+    await run()
+
+    expect(core.setFailed).toHaveBeenCalledWith(
+      'Bundletool JAR path is missing after install.'
+    )
+  })
+
+  it('logs signing details when credentials are materialized', async () => {
+    mockInputs({
+      'aab-file': 'app.aab',
+      command: 'build-apks',
+      sign: 'false',
+      verbose: 'true',
+      'dry-run': 'true'
+    })
+
+    signing.materializeSigning.mockResolvedValue({
+      keystorePath: '/tmp/signing.keystore',
+      keyAlias: 'upload',
+      keystorePasswordFile: '/tmp/keystore.pass',
+      keyPasswordFile: '/tmp/key.pass'
+    })
+
+    await run()
+
+    expect(core.setFailed).not.toHaveBeenCalled()
+    expect(core.info).toHaveBeenCalledWith(
+      '[verbose] Keystore ready at /tmp/signing.keystore'
+    )
+    expect(core.info).toHaveBeenCalledWith('[verbose] Key alias: upload')
+  })
+
+  it('sets output-dir when universal extraction uses a configured directory', async () => {
+    mockInputs({
+      'aab-file': 'app.aab',
+      command: 'build-apks',
+      sign: 'false',
+      'output-dir': 'out',
+      'dry-run': 'true'
+    })
+
+    universalApk.extractUniversalApk.mockResolvedValue({
+      apkPath: '/tmp/app.apk',
+      extracted: true,
+      apksDeleted: false
+    })
+
+    await run()
+
+    expect(core.setOutput).toHaveBeenCalledWith('output-dir', 'out')
+  })
+
+  it('announces the apks archive when universal extraction is skipped', async () => {
+    mockInputs({
+      'aab-file': 'app.aab',
+      command: 'build-apks',
+      sign: 'false',
+      'extract-universal-apk': 'false',
+      'dry-run': 'false'
+    })
+
+    installer.ensureBundletool.mockResolvedValue({
+      version: '1.18.3',
+      jarPath: '/cache/bundletool.jar',
+      downloadUrl:
+        'https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar',
+      fromCache: true,
+      dryRun: false
+    })
+
+    buildApksCommand.buildApks.mockResolvedValue({
+      apksPath: '/tmp/app.apks',
+      args: ['build-apks'],
+      executed: true
+    })
+
+    universalApk.extractUniversalApk.mockResolvedValue({
+      apkPath: '/tmp/app.apk',
+      extracted: false,
+      apksDeleted: false
+    })
+
+    await run()
+
+    expect(core.notice).toHaveBeenCalledWith('APK set ready at /tmp/app.apks')
+  })
+
+  it('completes extract-apks outside dry-run mode', async () => {
+    mockInputs({
+      command: 'extract-apks',
+      'apks-file': 'app.apks',
+      'device-spec': 'device.json',
+      'output-dir': 'out',
+      sign: 'false',
+      'dry-run': 'false'
+    })
+
+    installer.ensureBundletool.mockResolvedValue({
+      version: '1.18.3',
+      jarPath: '/cache/bundletool.jar',
+      downloadUrl:
+        'https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar',
+      fromCache: true,
+      dryRun: false
+    })
+
+    extractApksCommand.extractApks.mockResolvedValue({
+      apksPath: '/tmp/app.apks',
+      outputDir: '/tmp/out',
+      args: ['extract-apks'],
+      executed: true
+    })
+
+    await run()
+
+    expect(core.notice).toHaveBeenCalledWith('Device APKs ready in /tmp/out')
+  })
+
+  it('fails on unexpected non-Error throws', async () => {
+    installer.ensureBundletool.mockRejectedValue('boom')
+
+    await run()
+
+    expect(core.setFailed).toHaveBeenCalledWith('Unexpected error: boom')
+  })
+
+  it('logs optional configuration fields during planning', async () => {
+    mockInputs({
+      'aab-file': 'app.aab',
+      command: 'build-apks',
+      output: 'out/app.apks',
+      'output-dir': 'out',
+      'device-spec': 'device.json',
+      'extra-args': '--local-testing',
+      sign: 'false',
+      'dry-run': 'true'
+    })
+
+    await run()
+
+    expect(core.info).toHaveBeenCalledWith('Output: out/app.apks')
+    expect(core.info).toHaveBeenCalledWith('Output dir: out')
+    expect(core.info).toHaveBeenCalledWith('Device spec: device.json')
+    expect(core.info).toHaveBeenCalledWith('Extra args: --local-testing')
+    expect(core.info).toHaveBeenCalledWith('Signing: disabled')
+  })
 })

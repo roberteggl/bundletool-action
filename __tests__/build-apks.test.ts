@@ -107,4 +107,37 @@ describe('buildApks', () => {
       })
     ).rejects.toThrow(/AAB file not found/)
   })
+
+  it('fails when aab-file is not configured', async () => {
+    await expect(
+      buildApks({
+        config: baseConfig(dir, { aabFile: undefined }),
+        jarPath: '/cache/bundletool.jar',
+        logger
+      })
+    ).rejects.toThrow(/aab-file is required/)
+  })
+
+  it('validates device-spec when provided', async () => {
+    await writeFile(join(dir, 'app.aab'), 'aab')
+    await writeFile(join(dir, 'device.json'), '{}')
+
+    const result = await buildApks({
+      config: baseConfig(dir, { deviceSpec: 'device.json' }),
+      jarPath: '/cache/bundletool.jar',
+      logger
+    })
+
+    expect(result.executed).toBe(true)
+    expect(logger.info).toHaveBeenCalledWith(
+      `Device spec: ${join(dir, 'device.json')}`
+    )
+    expect(runBundletool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: expect.arrayContaining([
+          `--device-spec=${join(dir, 'device.json')}`
+        ])
+      })
+    )
+  })
 })

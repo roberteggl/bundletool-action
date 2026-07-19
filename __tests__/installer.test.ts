@@ -94,4 +94,38 @@ describe('ensureBundletool', () => {
     expect(installed.fromCache).toBe(true)
     expect(installed.jarPath).toBe('/cache/bundletool/1.18.3/bundletool.jar')
   })
+
+  it('verifies cached jars when a sha256 digest is provided', async () => {
+    find.mockReturnValue('/cache/bundletool/1.18.3')
+
+    await ensureBundletool(
+      { version: '1.18.3', sha256: 'a'.repeat(64) },
+      { cache: true, dryRun: false, logger }
+    )
+
+    expect(verifySha256).toHaveBeenCalledWith(
+      '/cache/bundletool/1.18.3/bundletool.jar',
+      'a'.repeat(64)
+    )
+    expect(logger.verbose).toHaveBeenCalledWith('Cached JAR SHA-256 verified')
+  })
+
+  it('downloads without caching when cache is disabled', async () => {
+    find.mockReturnValue('')
+
+    const installed = await ensureBundletool(
+      { version: '1.18.3' },
+      { cache: false, dryRun: false, logger }
+    )
+
+    expect(downloadTool).toHaveBeenCalled()
+    expect(cacheFile).not.toHaveBeenCalled()
+    expect(installed.jarPath).toBe('/tmp/downloaded.jar')
+    expect(logger.verbose).toHaveBeenCalledWith(
+      'Caching disabled; using downloaded JAR directly'
+    )
+    expect(logger.verbose).toHaveBeenCalledWith(
+      'No bundletool-sha256 provided; skipping checksum verification'
+    )
+  })
 })

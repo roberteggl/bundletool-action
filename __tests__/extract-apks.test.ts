@@ -88,4 +88,24 @@ describe('extractApks', () => {
       })
     )
   })
+
+  it('fails when apks-file is not configured', async () => {
+    await expect(
+      extractApks({
+        config: baseConfig({ apksFile: undefined }),
+        jarPath: '/cache/bundletool.jar',
+        logger: createLogger(false)
+      })
+    ).rejects.toThrow(/apks-file is required/)
+  })
+
+  it('fails when device-spec is not configured', async () => {
+    await expect(
+      extractApks({
+        config: baseConfig({ deviceSpec: undefined }),
+        jarPath: '/cache/bundletool.jar',
+        logger: createLogger(false)
+      })
+    ).rejects.toThrow(/device-spec is required/)
+  })
 })

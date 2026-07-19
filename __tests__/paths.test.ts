@@ -48,6 +48,10 @@ describe('paths', () => {
     )
   })
 
+  it('fails when extract output-dir is missing', () => {
+    expect(() => resolveExtractOutputDir(dir)).toThrow(/Provide "output-dir"/)
+  })
+
   it('ensures required files exist', async () => {
     const filePath = join(dir, 'app.aab')
     await writeFile(filePath, 'x')
