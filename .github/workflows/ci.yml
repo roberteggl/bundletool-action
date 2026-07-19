@@ -112,8 +112,8 @@ jobs:
           test -n "${{ steps.test-universal-apk.outputs.bundletool-version }}"
           test -f "${{ steps.test-universal-apk.outputs.bundletool-path }}"
           test -f "${{ steps.test-universal-apk.outputs.apks-path }}"
-          test -f "${{ steps.test-universal-apk.outputs.apk-path }}"
-          file "${{ steps.test-universal-apk.outputs.apk-path }}" | grep -q 'Zip archive'
+          test -s "${{ steps.test-universal-apk.outputs.apk-path }}"
+          file "${{ steps.test-universal-apk.outputs.apk-path }}" | grep -qiE 'zip archive|android package'
 
       - name: Build split APK set for extract-apks
         id: test-build-apks
