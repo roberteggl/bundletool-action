@@ -8,8 +8,8 @@
 GitHub Action that converts Android App Bundles (`.aab`) into APKs using
 [Google bundletool](https://developer.android.com/tools/bundletool).
 
-> **Status:** v0.1 - early release. Pin `roberteggl/bundletool-action@v0.1.0`
-> (or `@v0` for the latest 0.x).
+> **Status:** v1. Pin `roberteggl/bundletool-action@v1.0.0` (or `@v1` for the
+> latest 1.x).
 
 ## Features
 
@@ -33,7 +33,7 @@ GitHub Action that converts Android App Bundles (`.aab`) into APKs using
 
 - name: Build universal APK from AAB
   id: bundletool
-  uses: roberteggl/bundletool-action@v0.1.0
+  uses: roberteggl/bundletool-action@v1.0.0
   with:
     aab-file: app/build/outputs/bundle/release/app-release.aab
     bundletool-version: '1.18.3'
@@ -57,7 +57,7 @@ GitHub Action that converts Android App Bundles (`.aab`) into APKs using
 ```yaml
 - name: Extract APKs for a device
   id: extract
-  uses: roberteggl/bundletool-action@v0.1.0
+  uses: roberteggl/bundletool-action@v1.0.0
   with:
     command: extract-apks
     apks-file: app-release.apks
@@ -77,7 +77,7 @@ executing:
 
 ```yaml
 - name: Plan bundletool conversion
-  uses: roberteggl/bundletool-action@v0.1.0
+  uses: roberteggl/bundletool-action@v1.0.0
   with:
     aab-file: app/build/outputs/bundle/release/app-release.aab
     dry-run: true
@@ -164,7 +164,7 @@ use kebab-case and signing is optional.
     distribution: temurin
     java-version: '17'
 
-- uses: roberteggl/bundletool-action@v0.1.0
+- uses: roberteggl/bundletool-action@v1.0.0
   id: bundletool
   with:
     aab-file: app/build/outputs/bundle/release/app-release.aab
@@ -181,7 +181,7 @@ use kebab-case and signing is optional.
 ```
 
 Add `setup-java` before the action - Java is not bundled. Pin
-`roberteggl/bundletool-action@v0.1.0` (or `@v0` for the latest 0.x) instead of
+`roberteggl/bundletool-action@v1.0.0` (or `@v1` for the latest 1.x) instead of
 `@main`.
 
 ### Input mapping

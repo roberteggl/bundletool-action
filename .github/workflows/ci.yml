@@ -71,8 +71,7 @@ jobs:
 
       - name: Create Android debug keystore
         run: |
-          mkdir -p ~/.android
-          keytool -genkey -v -keystore ~/.android/debug.keystore \
+          keytool -genkey -v -keystore "${{ runner.temp }}/debug.keystore" \
             -storepass android -alias androiddebugkey -keypass android \
             -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
@@ -122,7 +121,7 @@ jobs:
           aab-file: __fixtures__/android/install-time-permanent-modules.aab
           bundletool-version: '1.18.3'
           sign: true
-          keystore: ${{ env.HOME }}/.android/debug.keystore
+          keystore: ${{ runner.temp }}/debug.keystore
           keystore-password: android
           key-alias: androiddebugkey
           key-password: android
