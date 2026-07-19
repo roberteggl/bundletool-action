@@ -127,14 +127,19 @@ function assertCommandRequirements(config: ActionConfig): void {
   }
 
   if (config.command === 'extract-apks') {
+    if (!config.apksFile) {
+      throw new ConfigError(
+        'Input "apks-file" is required when command is "extract-apks".'
+      )
+    }
     if (!config.deviceSpec) {
       throw new ConfigError(
         'Input "device-spec" is required when command is "extract-apks".'
       )
     }
-    if (!config.output && !config.outputDir) {
+    if (!config.outputDir && !config.output) {
       throw new ConfigError(
-        'Provide "output" or "output-dir" when command is "extract-apks".'
+        'Provide "output-dir" (or "output") when command is "extract-apks".'
       )
     }
   }
@@ -161,6 +166,24 @@ export function validateConfig(config: ActionConfig): ConfigWarning[] {
   ) {
     warnings.push({
       message: `extract-universal-apk=true has no effect when mode is "${config.mode}".`
+    })
+  }
+
+  if (
+    config.command === 'build-apks' &&
+    config.deviceSpec &&
+    config.mode === 'universal'
+  ) {
+    warnings.push({
+      message:
+        'device-spec is set with mode=universal. Bundletool will receive both flags; prefer mode=default for device-targeted builds.'
+    })
+  }
+
+  if (config.command === 'extract-apks' && config.extractUniversalApk) {
+    warnings.push({
+      message:
+        'extract-universal-apk is ignored when command is "extract-apks".'
     })
   }
 

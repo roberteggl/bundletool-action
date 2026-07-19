@@ -37,11 +37,11 @@ import require$$5$3 from 'string_decoder';
 import * as child from 'child_process';
 import { setTimeout as setTimeout$1 } from 'timers';
 import * as path$1 from 'node:path';
-import { join, resolve, isAbsolute } from 'node:path';
+import { isAbsolute, resolve, basename, extname, join, dirname } from 'node:path';
+import { access as access$1, readFile, mkdir as mkdir$1, writeFile as writeFile$1 } from 'node:fs/promises';
 import * as stream from 'stream';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { mkdir as mkdir$1, writeFile as writeFile$1, access as access$1 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 
 // We use any as a valid input type
@@ -30052,6 +30052,800 @@ function endGroup() {
     issue('endgroup');
 }
 
+class ActionError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ActionError";
+  }
+}
+class ConfigError extends ActionError {
+  constructor(message) {
+    super(message);
+    this.name = "ConfigError";
+  }
+}
+class PrerequisiteError extends ActionError {
+  constructor(message) {
+    super(message);
+    this.name = "PrerequisiteError";
+  }
+}
+class DownloadError extends ActionError {
+  constructor(message) {
+    super(message);
+    this.name = "DownloadError";
+  }
+}
+class SigningError extends ActionError {
+  constructor(message) {
+    super(message);
+    this.name = "SigningError";
+  }
+}
+class BundletoolError extends ActionError {
+  exitCode;
+  constructor(message, exitCode) {
+    super(message);
+    this.name = "BundletoolError";
+    this.exitCode = exitCode;
+  }
+}
+class ArtifactError extends ActionError {
+  constructor(message) {
+    super(message);
+    this.name = "ArtifactError";
+  }
+}
+
+function resolveWorkspacePath(workingDirectory, targetPath) {
+  return isAbsolute(targetPath) ? targetPath : resolve(workingDirectory, targetPath);
+}
+async function ensureFileExists(filePath, label) {
+  try {
+    await access$1(filePath);
+  } catch {
+    throw new PrerequisiteError(`${label} not found: ${filePath}`);
+  }
+}
+function resolveApksOutputPath(workingDirectory, aabFile, output) {
+  if (output) {
+    const resolved = resolveWorkspacePath(workingDirectory, output);
+    return resolved.endsWith(".apks") ? resolved : `${resolved}.apks`;
+  }
+  const base = basename(aabFile, extname(aabFile) || void 0);
+  return join(workingDirectory, `${base}.apks`);
+}
+function resolveExtractOutputDir(workingDirectory, outputDir, output) {
+  const target = outputDir ?? output;
+  if (!target) {
+    throw new PrerequisiteError(
+      'Provide "output-dir" (or "output") when command is "extract-apks".'
+    );
+  }
+  return resolveWorkspacePath(workingDirectory, target);
+}
+
+function resolveUniversalApkPath(options) {
+  const { workingDirectory, aabFile, apksPath, output, outputDir } = options;
+  if (output?.endsWith(".apk")) {
+    return resolveWorkspacePath(workingDirectory, output);
+  }
+  const baseSource = aabFile ?? apksPath;
+  const base = basename(baseSource, extname(baseSource) || void 0);
+  if (outputDir) {
+    return join(
+      resolveWorkspacePath(workingDirectory, outputDir),
+      `${base}.apk`
+    );
+  }
+  return join(dirname(apksPath), `${base}.apk`);
+}
+
+// DEFLATE is a complex format; to read this code, you should probably check the RFC first:
+// https://tools.ietf.org/html/rfc1951
+// You may also wish to take a look at the guide I made about this program:
+// https://gist.github.com/101arrowz/253f31eb5abc3d9275ab943003ffecad
+// Some of the following code is similar to that of UZIP.js:
+// https://github.com/photopea/UZIP.js
+// However, the vast majority of the codebase has diverged from UZIP.js to increase performance and reduce bundle size.
+// Sometimes 0 will appear where -1 would be more appropriate. This is because using a uint
+// is better for memory in most engines (I *think*).
+
+// aliases for shorter compressed code (most minifers don't do this)
+var u8 = Uint8Array, u16 = Uint16Array, i32 = Int32Array;
+// fixed length extra bits
+var fleb = new u8([0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0, /* unused */ 0, 0, /* impossible */ 0]);
+// fixed distance extra bits
+var fdeb = new u8([0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, /* unused */ 0, 0]);
+// code length index map
+var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
+// get base, reverse index map from extra bits
+var freb = function (eb, start) {
+    var b = new u16(31);
+    for (var i = 0; i < 31; ++i) {
+        b[i] = start += 1 << eb[i - 1];
+    }
+    // numbers here are at max 18 bits
+    var r = new i32(b[30]);
+    for (var i = 1; i < 30; ++i) {
+        for (var j = b[i]; j < b[i + 1]; ++j) {
+            r[j] = ((j - b[i]) << 5) | i;
+        }
+    }
+    return { b: b, r: r };
+};
+var _a = freb(fleb, 2), fl = _a.b, revfl = _a.r;
+// we can ignore the fact that the other numbers are wrong; they never happen anyway
+fl[28] = 258, revfl[258] = 28;
+var _b = freb(fdeb, 0), fd = _b.b;
+// map of value to reverse (assuming 16 bits)
+var rev = new u16(32768);
+for (var i = 0; i < 32768; ++i) {
+    // reverse table algorithm from SO
+    var x = ((i & 0xAAAA) >> 1) | ((i & 0x5555) << 1);
+    x = ((x & 0xCCCC) >> 2) | ((x & 0x3333) << 2);
+    x = ((x & 0xF0F0) >> 4) | ((x & 0x0F0F) << 4);
+    rev[i] = (((x & 0xFF00) >> 8) | ((x & 0x00FF) << 8)) >> 1;
+}
+// create huffman tree from u8 "map": index -> code length for code index
+// mb (max bits) must be at most 15
+// TODO: optimize/split up?
+var hMap = (function (cd, mb, r) {
+    var s = cd.length;
+    // index
+    var i = 0;
+    // u16 "map": index -> # of codes with bit length = index
+    var l = new u16(mb);
+    // length of cd must be 288 (total # of codes)
+    for (; i < s; ++i) {
+        if (cd[i])
+            ++l[cd[i] - 1];
+    }
+    // u16 "map": index -> minimum code for bit length = index
+    var le = new u16(mb);
+    for (i = 1; i < mb; ++i) {
+        le[i] = (le[i - 1] + l[i - 1]) << 1;
+    }
+    var co;
+    if (r) {
+        // u16 "map": index -> number of actual bits, symbol for code
+        co = new u16(1 << mb);
+        // bits to remove for reverser
+        var rvb = 15 - mb;
+        for (i = 0; i < s; ++i) {
+            // ignore 0 lengths
+            if (cd[i]) {
+                // num encoding both symbol and bits read
+                var sv = (i << 4) | cd[i];
+                // free bits
+                var r_1 = mb - cd[i];
+                // start value
+                var v = le[cd[i] - 1]++ << r_1;
+                // m is end value
+                for (var m = v | ((1 << r_1) - 1); v <= m; ++v) {
+                    // every 16 bit value starting with the code yields the same result
+                    co[rev[v] >> rvb] = sv;
+                }
+            }
+        }
+    }
+    else {
+        co = new u16(s);
+        for (i = 0; i < s; ++i) {
+            if (cd[i]) {
+                co[i] = rev[le[cd[i] - 1]++] >> (15 - cd[i]);
+            }
+        }
+    }
+    return co;
+});
+// fixed length tree
+var flt = new u8(288);
+for (var i = 0; i < 144; ++i)
+    flt[i] = 8;
+for (var i = 144; i < 256; ++i)
+    flt[i] = 9;
+for (var i = 256; i < 280; ++i)
+    flt[i] = 7;
+for (var i = 280; i < 288; ++i)
+    flt[i] = 8;
+// fixed distance tree
+var fdt = new u8(32);
+for (var i = 0; i < 32; ++i)
+    fdt[i] = 5;
+// fixed length map
+var flrm = /*#__PURE__*/ hMap(flt, 9, 1);
+// fixed distance map
+var fdrm = /*#__PURE__*/ hMap(fdt, 5, 1);
+// find max of array
+var max = function (a) {
+    var m = a[0];
+    for (var i = 1; i < a.length; ++i) {
+        if (a[i] > m)
+            m = a[i];
+    }
+    return m;
+};
+// read d, starting at bit p and mask with m
+var bits = function (d, p, m) {
+    var o = (p / 8) | 0;
+    return ((d[o] | (d[o + 1] << 8)) >> (p & 7)) & m;
+};
+// read d, starting at bit p continuing for at least 16 bits
+var bits16 = function (d, p) {
+    var o = (p / 8) | 0;
+    return ((d[o] | (d[o + 1] << 8) | (d[o + 2] << 16)) >> (p & 7));
+};
+// get end of byte
+var shft = function (p) { return ((p + 7) / 8) | 0; };
+// typed array slice - allows garbage collector to free original reference,
+// while being more compatible than .slice
+var slc = function (v, s, e) {
+    if (s == null || s < 0)
+        s = 0;
+    if (e == null || e > v.length)
+        e = v.length;
+    // can't use .constructor in case user-supplied
+    return new u8(v.subarray(s, e));
+};
+// error codes
+var ec = [
+    'unexpected EOF',
+    'invalid block type',
+    'invalid length/literal',
+    'invalid distance',
+    'stream finished',
+    'no stream handler',
+    , // determined by compression function
+    'no callback',
+    'invalid UTF-8 data',
+    'extra field too long',
+    'date not in range 1980-2099',
+    'filename too long',
+    'stream finishing',
+    'invalid zip data'
+    // determined by unknown compression method
+];
+var err = function (ind, msg, nt) {
+    var e = new Error(msg || ec[ind]);
+    e.code = ind;
+    if (Error.captureStackTrace)
+        Error.captureStackTrace(e, err);
+    if (!nt)
+        throw e;
+    return e;
+};
+// expands raw DEFLATE data
+var inflt = function (dat, st, buf, dict) {
+    // source length       dict length
+    var sl = dat.length, dl = dict ? dict.length : 0;
+    if (!sl || st.f && !st.l)
+        return buf || new u8(0);
+    var noBuf = !buf;
+    // have to estimate size
+    var resize = noBuf || st.i != 2;
+    // no state
+    var noSt = st.i;
+    // Assumes roughly 33% compression ratio average
+    if (noBuf)
+        buf = new u8(sl * 3);
+    // ensure buffer can fit at least l elements
+    var cbuf = function (l) {
+        var bl = buf.length;
+        // need to increase size to fit
+        if (l > bl) {
+            // Double or set to necessary, whichever is greater
+            var nbuf = new u8(Math.max(bl * 2, l));
+            nbuf.set(buf);
+            buf = nbuf;
+        }
+    };
+    //  last chunk         bitpos           bytes
+    var final = st.f || 0, pos = st.p || 0, bt = st.b || 0, lm = st.l, dm = st.d, lbt = st.m, dbt = st.n;
+    // total bits
+    var tbts = sl * 8;
+    do {
+        if (!lm) {
+            // BFINAL - this is only 1 when last chunk is next
+            final = bits(dat, pos, 1);
+            // type: 0 = no compression, 1 = fixed huffman, 2 = dynamic huffman
+            var type = bits(dat, pos + 1, 3);
+            pos += 3;
+            if (!type) {
+                // go to end of byte boundary
+                var s = shft(pos) + 4, l = dat[s - 4] | (dat[s - 3] << 8), t = s + l;
+                if (t > sl) {
+                    if (noSt)
+                        err(0);
+                    break;
+                }
+                // ensure size
+                if (resize)
+                    cbuf(bt + l);
+                // Copy over uncompressed data
+                buf.set(dat.subarray(s, t), bt);
+                // Get new bitpos, update byte count
+                st.b = bt += l, st.p = pos = t * 8, st.f = final;
+                continue;
+            }
+            else if (type == 1)
+                lm = flrm, dm = fdrm, lbt = 9, dbt = 5;
+            else if (type == 2) {
+                //  literal                            lengths
+                var hLit = bits(dat, pos, 31) + 257, hcLen = bits(dat, pos + 10, 15) + 4;
+                var tl = hLit + bits(dat, pos + 5, 31) + 1;
+                pos += 14;
+                // length+distance tree
+                var ldt = new u8(tl);
+                // code length tree
+                var clt = new u8(19);
+                for (var i = 0; i < hcLen; ++i) {
+                    // use index map to get real code
+                    clt[clim[i]] = bits(dat, pos + i * 3, 7);
+                }
+                pos += hcLen * 3;
+                // code lengths bits
+                var clb = max(clt), clbmsk = (1 << clb) - 1;
+                // code lengths map
+                var clm = hMap(clt, clb, 1);
+                for (var i = 0; i < tl;) {
+                    var r = clm[bits(dat, pos, clbmsk)];
+                    // bits read
+                    pos += r & 15;
+                    // symbol
+                    var s = r >> 4;
+                    // code length to copy
+                    if (s < 16) {
+                        ldt[i++] = s;
+                    }
+                    else {
+                        //  copy   count
+                        var c = 0, n = 0;
+                        if (s == 16)
+                            n = 3 + bits(dat, pos, 3), pos += 2, c = ldt[i - 1];
+                        else if (s == 17)
+                            n = 3 + bits(dat, pos, 7), pos += 3;
+                        else if (s == 18)
+                            n = 11 + bits(dat, pos, 127), pos += 7;
+                        while (n--)
+                            ldt[i++] = c;
+                    }
+                }
+                //    length tree                 distance tree
+                var lt = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
+                // max length bits
+                lbt = max(lt);
+                // max dist bits
+                dbt = max(dt);
+                lm = hMap(lt, lbt, 1);
+                dm = hMap(dt, dbt, 1);
+            }
+            else
+                err(1);
+            if (pos > tbts) {
+                if (noSt)
+                    err(0);
+                break;
+            }
+        }
+        // Make sure the buffer can hold this + the largest possible addition
+        // Maximum chunk size (practically, theoretically infinite) is 2^17
+        if (resize)
+            cbuf(bt + 131072);
+        var lms = (1 << lbt) - 1, dms = (1 << dbt) - 1;
+        var lpos = pos;
+        for (;; lpos = pos) {
+            // bits read, code
+            var c = lm[bits16(dat, pos) & lms], sym = c >> 4;
+            pos += c & 15;
+            if (pos > tbts) {
+                if (noSt)
+                    err(0);
+                break;
+            }
+            if (!c)
+                err(2);
+            if (sym < 256)
+                buf[bt++] = sym;
+            else if (sym == 256) {
+                lpos = pos, lm = null;
+                break;
+            }
+            else {
+                var add = sym - 254;
+                // no extra bits needed if less
+                if (sym > 264) {
+                    // index
+                    var i = sym - 257, b = fleb[i];
+                    add = bits(dat, pos, (1 << b) - 1) + fl[i];
+                    pos += b;
+                }
+                // dist
+                var d = dm[bits16(dat, pos) & dms], dsym = d >> 4;
+                if (!d)
+                    err(3);
+                pos += d & 15;
+                var dt = fd[dsym];
+                if (dsym > 3) {
+                    var b = fdeb[dsym];
+                    dt += bits16(dat, pos) & (1 << b) - 1, pos += b;
+                }
+                if (pos > tbts) {
+                    if (noSt)
+                        err(0);
+                    break;
+                }
+                if (resize)
+                    cbuf(bt + 131072);
+                var end = bt + add;
+                if (bt < dt) {
+                    var shift = dl - dt, dend = Math.min(dt, end);
+                    if (shift + bt < 0)
+                        err(3);
+                    for (; bt < dend; ++bt)
+                        buf[bt] = dict[shift + bt];
+                }
+                for (; bt < end; ++bt)
+                    buf[bt] = buf[bt - dt];
+            }
+        }
+        st.l = lm, st.p = lpos, st.b = bt, st.f = final;
+        if (lm)
+            final = 1, st.m = lbt, st.d = dm, st.n = dbt;
+    } while (!final);
+    // don't reallocate for streams or user buffers
+    return bt != buf.length && noBuf ? slc(buf, 0, bt) : buf.subarray(0, bt);
+};
+// empty
+var et = /*#__PURE__*/ new u8(0);
+// read 2 bytes
+var b2 = function (d, b) { return d[b] | (d[b + 1] << 8); };
+// read 4 bytes
+var b4 = function (d, b) { return (d[b] | (d[b + 1] << 8) | (d[b + 2] << 16) | (d[b + 3] << 24)) >>> 0; };
+// read 8 bytes
+var b8 = function (d, b) { return b4(d, b) + (b4(d, b + 4) * 4294967296); };
+function inflateSync(data, opts) {
+    return inflt(data, { i: 2 }, opts && opts.out, opts && opts.dictionary);
+}
+// text decoder
+var td = typeof TextDecoder != 'undefined' && /*#__PURE__*/ new TextDecoder();
+// text decoder stream
+var tds = 0;
+try {
+    td.decode(et, { stream: true });
+    tds = 1;
+}
+catch (e) { }
+// decode UTF8
+var dutf8 = function (d) {
+    for (var r = '', i = 0;;) {
+        var c = d[i++];
+        var eb = (c > 127) + (c > 223) + (c > 239);
+        if (i + eb > d.length)
+            return { s: r, r: slc(d, i - 1) };
+        if (!eb)
+            r += String.fromCharCode(c);
+        else if (eb == 3) {
+            c = ((c & 15) << 18 | (d[i++] & 63) << 12 | (d[i++] & 63) << 6 | (d[i++] & 63)) - 65536,
+                r += String.fromCharCode(55296 | (c >> 10), 56320 | (c & 1023));
+        }
+        else if (eb & 1)
+            r += String.fromCharCode((c & 31) << 6 | (d[i++] & 63));
+        else
+            r += String.fromCharCode((c & 15) << 12 | (d[i++] & 63) << 6 | (d[i++] & 63));
+    }
+};
+/**
+ * Converts a Uint8Array to a string
+ * @param dat The data to decode to string
+ * @param latin1 Whether or not to interpret the data as Latin-1. This should
+ *               not need to be true unless encoding to binary string.
+ * @returns The original UTF-8/Latin-1 string
+ */
+function strFromU8(dat, latin1) {
+    if (latin1) {
+        var r = '';
+        for (var i = 0; i < dat.length; i += 16384)
+            r += String.fromCharCode.apply(null, dat.subarray(i, i + 16384));
+        return r;
+    }
+    else if (td) {
+        return td.decode(dat);
+    }
+    else {
+        var _a = dutf8(dat), s = _a.s, r = _a.r;
+        if (r.length)
+            err(8);
+        return s;
+    }
+}
+// skip local zip header
+var slzh = function (d, b) { return b + 30 + b2(d, b + 26) + b2(d, b + 28); };
+// read zip header
+var zh = function (d, b, z) {
+    var fnl = b2(d, b + 28), efl = b2(d, b + 30), fn = strFromU8(d.subarray(b + 46, b + 46 + fnl), !(b2(d, b + 8) & 2048)), es = b + 46 + fnl;
+    var _a = z64hs(d, es, efl, z, b4(d, b + 20), b4(d, b + 24), b4(d, b + 42)), sc = _a[0], su = _a[1], off = _a[2];
+    return [b2(d, b + 10), sc, su, fn, es + efl + b2(d, b + 32), off];
+};
+// read zip64 header sizes
+var z64hs = function (d, b, l, z, sc, su, off) {
+    var nsc = sc == 4294967295, nsu = su == 4294967295, noff = off == 4294967295, e = b + l;
+    var nf = nsc + nsu + noff;
+    if (z && nf) {
+        for (; b + 4 < e; b += 4 + b2(d, b + 2)) {
+            if (b2(d, b) == 1) {
+                return [
+                    nsc ? b8(d, b + 4 + 8 * nsu) : sc,
+                    nsu ? b8(d, b + 4) : su,
+                    noff ? b8(d, b + 4 + 8 * (nsu + nsc)) : off,
+                    1
+                ];
+            }
+        }
+        // z == 2 for unknown whether or not zip64
+        if (z < 2)
+            err(13);
+    }
+    return [sc, su, off, 0];
+};
+/**
+ * Synchronously decompresses a ZIP archive. Prefer using `unzip` for better
+ * performance with more than one file.
+ * @param data The raw compressed ZIP file
+ * @param opts The ZIP extraction options
+ * @returns The decompressed files
+ */
+function unzipSync(data, opts) {
+    var files = {};
+    var e = data.length - 22;
+    for (; b4(data, e) != 0x6054B50; --e) {
+        if (!e || data.length - e > 65558)
+            err(13);
+    }
+    var c = b2(data, e + 8);
+    if (!c)
+        return {};
+    var o = b4(data, e + 16);
+    var z = b4(data, e - 20) == 0x7064B50;
+    if (z) {
+        var ze = b4(data, e - 12);
+        z = b4(data, ze) == 0x6064B50;
+        if (z) {
+            c = b4(data, ze + 32);
+            o = b4(data, ze + 48);
+        }
+    }
+    for (var i = 0; i < c; ++i) {
+        var _a = zh(data, o, z), c_2 = _a[0], sc = _a[1], su = _a[2], fn = _a[3], no = _a[4], off = _a[5], b = slzh(data, off);
+        o = no;
+        {
+            if (!c_2)
+                files[fn] = slc(data, b, b + sc);
+            else if (c_2 == 8)
+                files[fn] = inflateSync(data.subarray(b, b + sc), { out: new u8(su) });
+            else
+                err(14, 'unknown compression type ' + c_2);
+        }
+    }
+    return files;
+}
+
+async function extractZipEntry(zipPath, entryName, destinationPath) {
+  let archive;
+  try {
+    archive = await readFile(zipPath);
+  } catch (error) {
+    throw new ArtifactError(
+      `Failed to read archive ${zipPath}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+  let entries;
+  try {
+    entries = unzipSync(archive);
+  } catch (error) {
+    throw new ArtifactError(
+      `Failed to unzip ${zipPath}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+  const match = Object.keys(entries).find((key) => {
+    const name = key.replace(/\\/g, "/");
+    return name === entryName || basename(name) === entryName;
+  });
+  if (!match || !entries[match]) {
+    const available = Object.keys(entries).map((key) => basename(key.replace(/\\/g, "/"))).filter(Boolean).join(", ");
+    throw new ArtifactError(
+      `Entry "${entryName}" not found in ${zipPath}.${available ? ` Found: ${available}` : ""}`
+    );
+  }
+  await mkdir$1(dirname(destinationPath), { recursive: true });
+  await writeFile$1(destinationPath, entries[match]);
+}
+
+async function extractUniversalApk(options) {
+  const { config, apksPath, logger } = options;
+  if (!config.extractUniversalApk || config.mode !== "universal") {
+    logger.verbose("Universal APK extraction skipped");
+    return void 0;
+  }
+  const apkPath = resolveUniversalApkPath({
+    workingDirectory: config.workingDirectory,
+    aabFile: config.aabFile,
+    apksPath,
+    output: config.output,
+    outputDir: config.outputDir
+  });
+  logger.info(`Universal APK destination: ${apkPath}`);
+  if (config.dryRun) {
+    logger.info("Dry run: skipping universal APK extraction");
+    return { apkPath, extracted: false, apksDeleted: false };
+  }
+  await extractZipEntry(apksPath, "universal.apk", apkPath);
+  logger.info(`Extracted universal APK to ${apkPath}`);
+  let apksDeleted = false;
+  if (!config.keepApks) {
+    await rmRF(apksPath);
+    apksDeleted = true;
+    logger.info(`Removed APK set archive (${apksPath}) because keep-apks=false`);
+  }
+  return { apkPath, extracted: true, apksDeleted };
+}
+
+function buildApksArgs(options) {
+  const args = [
+    "build-apks",
+    `--bundle=${options.aabFile}`,
+    `--output=${options.output}`,
+    `--mode=${options.mode}`
+  ];
+  {
+    args.push("--overwrite");
+  }
+  if (options.deviceSpec) {
+    args.push(`--device-spec=${options.deviceSpec}`);
+  }
+  if (options.signing) {
+    args.push(
+      `--ks=${options.signing.keystorePath}`,
+      `--ks-pass=file:${options.signing.keystorePasswordFile}`,
+      `--ks-key-alias=${options.signing.keyAlias}`,
+      `--key-pass=file:${options.signing.keyPasswordFile}`
+    );
+  }
+  args.push(...options.extraArgs);
+  return args;
+}
+function buildExtractApksArgs(options) {
+  return [
+    "extract-apks",
+    `--apks=${options.apksFile}`,
+    `--output-dir=${options.outputDir}`,
+    `--device-spec=${options.deviceSpec}`,
+    ...options.extraArgs
+  ];
+}
+function redactBundletoolArgs(args) {
+  return args.map((arg) => {
+    if (arg.startsWith("--ks-pass=file:") || arg.startsWith("--key-pass=file:")) {
+      const prefix = arg.slice(0, arg.indexOf("=") + 1);
+      return `${prefix}file:[redacted]`;
+    }
+    return arg;
+  });
+}
+
+async function runBundletool(options) {
+  const { javaBin, jarPath, args, cwd, logger } = options;
+  const argv = ["-jar", jarPath, ...args];
+  logger.info(
+    `Running: ${javaBin} -jar ${jarPath} ${redactBundletoolArgs(args).join(" ")}`
+  );
+  const exitCode = await exec(javaBin, argv, {
+    cwd,
+    ignoreReturnCode: true,
+    silent: false
+  });
+  if (exitCode !== 0) {
+    throw new BundletoolError(
+      `bundletool exited with code ${exitCode}. See logs above for details.`,
+      exitCode
+    );
+  }
+  return { exitCode };
+}
+
+async function buildApks(options) {
+  const { config, jarPath, signing, logger } = options;
+  if (!config.aabFile) {
+    throw new Error("aab-file is required for build-apks");
+  }
+  const aabFile = resolveWorkspacePath(config.workingDirectory, config.aabFile);
+  const apksPath = resolveApksOutputPath(
+    config.workingDirectory,
+    aabFile,
+    config.output
+  );
+  const deviceSpec = config.deviceSpec ? resolveWorkspacePath(config.workingDirectory, config.deviceSpec) : void 0;
+  const args = buildApksArgs({
+    aabFile,
+    output: apksPath,
+    mode: config.mode,
+    deviceSpec,
+    signing,
+    extraArgs: config.extraArgs});
+  logger.info(`AAB: ${aabFile}`);
+  logger.info(`APKS output: ${apksPath}`);
+  if (deviceSpec) {
+    logger.info(`Device spec: ${deviceSpec}`);
+  }
+  logger.verbose(`build-apks args: ${redactBundletoolArgs(args).join(" ")}`);
+  if (config.dryRun) {
+    logger.info("Dry run: skipping bundletool build-apks execution");
+    return { apksPath, args, executed: false };
+  }
+  await ensureFileExists(aabFile, "AAB file");
+  if (deviceSpec) {
+    await ensureFileExists(deviceSpec, "Device spec");
+  }
+  await runBundletool({
+    javaBin: config.javaBin,
+    jarPath,
+    args,
+    cwd: config.workingDirectory,
+    logger
+  });
+  logger.info(`Generated APK set at ${apksPath}`);
+  return { apksPath, args, executed: true };
+}
+
+async function extractApks(options) {
+  const { config, jarPath, logger } = options;
+  if (!config.apksFile) {
+    throw new Error("apks-file is required for extract-apks");
+  }
+  if (!config.deviceSpec) {
+    throw new Error("device-spec is required for extract-apks");
+  }
+  const apksPath = resolveWorkspacePath(
+    config.workingDirectory,
+    config.apksFile
+  );
+  const deviceSpec = resolveWorkspacePath(
+    config.workingDirectory,
+    config.deviceSpec
+  );
+  const outputDir = resolveExtractOutputDir(
+    config.workingDirectory,
+    config.outputDir,
+    config.output
+  );
+  const args = buildExtractApksArgs({
+    apksFile: apksPath,
+    outputDir,
+    deviceSpec,
+    extraArgs: config.extraArgs
+  });
+  logger.info(`APKS: ${apksPath}`);
+  logger.info(`Device spec: ${deviceSpec}`);
+  logger.info(`Output dir: ${outputDir}`);
+  logger.verbose(`extract-apks args: ${redactBundletoolArgs(args).join(" ")}`);
+  if (config.dryRun) {
+    logger.info("Dry run: skipping bundletool extract-apks execution");
+    return { apksPath, outputDir, args, executed: false };
+  }
+  await ensureFileExists(apksPath, "APKS file");
+  await ensureFileExists(deviceSpec, "Device spec");
+  await mkdir$1(outputDir, { recursive: true });
+  await runBundletool({
+    javaBin: config.javaBin,
+    jarPath,
+    args,
+    cwd: config.workingDirectory,
+    logger
+  });
+  logger.info(`Extracted device APKs to ${outputDir}`);
+  return { apksPath, outputDir, args, executed: true };
+}
+
 var re = {exports: {}};
 
 var constants;
@@ -33204,37 +33998,6 @@ function _getGlobal(key, defaultValue) {
     return value !== undefined ? value : defaultValue;
 }
 
-class ActionError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "ActionError";
-  }
-}
-class ConfigError extends ActionError {
-  constructor(message) {
-    super(message);
-    this.name = "ConfigError";
-  }
-}
-class PrerequisiteError extends ActionError {
-  constructor(message) {
-    super(message);
-    this.name = "PrerequisiteError";
-  }
-}
-class DownloadError extends ActionError {
-  constructor(message) {
-    super(message);
-    this.name = "DownloadError";
-  }
-}
-class SigningError extends ActionError {
-  constructor(message) {
-    super(message);
-    this.name = "SigningError";
-  }
-}
-
 const GITHUB_API = "https://api.github.com";
 const REPO = "google/bundletool";
 function authHeaders() {
@@ -33449,6 +34212,7 @@ const BUILD_MODES = ["universal", "default", "system"];
 const RESERVED_EXTRA_FLAGS = [
   "--bundle",
   "--output",
+  "--output-dir",
   "--mode",
   "--ks",
   "--ks-pass",
@@ -33456,7 +34220,8 @@ const RESERVED_EXTRA_FLAGS = [
   "--key-pass",
   "--device-spec",
   "--connected-device",
-  "--overwrite"
+  "--overwrite",
+  "--apks"
 ];
 const SHA256_PATTERN = /^[a-fA-F0-9]{64}$/;
 const VERSION_PATTERN = /^v?\d+\.\d+\.\d+$/;
@@ -33554,14 +34319,19 @@ function assertCommandRequirements(config) {
     );
   }
   if (config.command === "extract-apks") {
+    if (!config.apksFile) {
+      throw new ConfigError(
+        'Input "apks-file" is required when command is "extract-apks".'
+      );
+    }
     if (!config.deviceSpec) {
       throw new ConfigError(
         'Input "device-spec" is required when command is "extract-apks".'
       );
     }
-    if (!config.output && !config.outputDir) {
+    if (!config.outputDir && !config.output) {
       throw new ConfigError(
-        'Provide "output" or "output-dir" when command is "extract-apks".'
+        'Provide "output-dir" (or "output") when command is "extract-apks".'
       );
     }
   }
@@ -33578,6 +34348,16 @@ function validateConfig(config) {
   if (config.command === "build-apks" && config.mode !== "universal" && config.extractUniversalApk) {
     warnings.push({
       message: `extract-universal-apk=true has no effect when mode is "${config.mode}".`
+    });
+  }
+  if (config.command === "build-apks" && config.deviceSpec && config.mode === "universal") {
+    warnings.push({
+      message: "device-spec is set with mode=universal. Bundletool will receive both flags; prefer mode=default for device-targeted builds."
+    });
+  }
+  if (config.command === "extract-apks" && config.extractUniversalApk) {
+    warnings.push({
+      message: 'extract-universal-apk is ignored when command is "extract-apks".'
     });
   }
   if (config.workingDirectory.trim() === "") {
@@ -33654,6 +34434,7 @@ function parseInputs() {
       "build-apks"
     ),
     aabFile: getOptionalInput("aab-file"),
+    apksFile: getOptionalInput("apks-file"),
     mode: getRequiredDefault("mode", "universal"),
     output: getOptionalInput("output"),
     outputDir: getOptionalInput("output-dir"),
@@ -33681,6 +34462,7 @@ function redactConfig(config) {
   return {
     command: config.command,
     aabFile: config.aabFile,
+    apksFile: config.apksFile,
     mode: config.mode,
     output: config.output,
     outputDir: config.outputDir,
@@ -33871,7 +34653,7 @@ function emitWarnings(logger, warnings) {
 }
 function logPlannedSteps(logger, config) {
   logger.info(
-    "Milestone 3 \u2014 signing materialization; build-apks pending M4\u2013M5."
+    "Milestone 6 \u2014 build-apks, universal APK extract, and device-specific extract-apks."
   );
   logger.info(`Command: ${config.command}`);
   logger.info(`Mode: ${config.mode}`);
@@ -33882,6 +34664,9 @@ function logPlannedSteps(logger, config) {
   logger.info(`Cache: ${config.cache}`);
   if (config.aabFile) {
     logger.info(`AAB file: ${config.aabFile}`);
+  }
+  if (config.apksFile) {
+    logger.info(`APKS file: ${config.apksFile}`);
   }
   if (config.output) {
     logger.info(`Output: ${config.output}`);
@@ -33909,10 +34694,14 @@ ${JSON.stringify(redactConfig(config), null, 2)}`
   logger.info("Planned pipeline:");
   logger.info("  1. Ensure Java is available");
   logger.info("  2. Download, verify, and cache bundletool");
-  logger.info("  3. Materialize signing credentials (if enabled)");
-  logger.info(`  4. Run bundletool ${config.command}`);
-  if (config.extractUniversalApk && config.mode === "universal") {
-    logger.info("  5. Extract universal APK from .apks");
+  if (config.command === "build-apks") {
+    logger.info("  3. Materialize signing credentials (if enabled)");
+    logger.info("  4. Run bundletool build-apks");
+    if (config.extractUniversalApk && config.mode === "universal") {
+      logger.info("  5. Extract universal APK from .apks");
+    }
+  } else {
+    logger.info("  3. Run bundletool extract-apks");
   }
   logger.info("  6. Set outputs and clean up temporary files");
 }
@@ -33940,6 +34729,29 @@ async function run() {
     if (installed.jarPath) {
       setOutput("bundletool-path", installed.jarPath);
     }
+    if (!installed.jarPath && !config.dryRun) {
+      throw new ActionError("Bundletool JAR path is missing after install.");
+    }
+    const jarPath = installed.jarPath ?? "bundletool.jar";
+    if (config.command === "extract-apks") {
+      const extractResult2 = await logger.group("extract-apks", async () => {
+        return extractApks({
+          config,
+          jarPath,
+          logger
+        });
+      });
+      setOutput("apks-path", extractResult2.apksPath);
+      setOutput("output-dir", extractResult2.outputDir);
+      if (config.dryRun) {
+        logger.notice(
+          "Dry run complete \u2014 extract-apks was planned but not executed."
+        );
+        return;
+      }
+      logger.notice(`Device APKs ready in ${extractResult2.outputDir}`);
+      return;
+    }
     const signing = await logger.group("Signing", async () => {
       return materializeSigning(config.signing, {
         workingDirectory: config.workingDirectory,
@@ -33952,15 +34764,44 @@ async function run() {
       logger.verbose(`Keystore ready at ${signing.keystorePath}`);
       logger.verbose(`Key alias: ${signing.keyAlias}`);
     }
+    const buildResult = await logger.group("build-apks", async () => {
+      return buildApks({
+        config,
+        jarPath,
+        signing,
+        logger
+      });
+    });
+    const extractResult = await logger.group(
+      "Extract universal APK",
+      async () => {
+        return extractUniversalApk({
+          config,
+          apksPath: buildResult.apksPath,
+          logger
+        });
+      }
+    );
+    if (!extractResult?.apksDeleted) {
+      setOutput("apks-path", buildResult.apksPath);
+    }
+    if (extractResult) {
+      setOutput("apk-path", extractResult.apkPath);
+      if (config.outputDir) {
+        setOutput("output-dir", config.outputDir);
+      }
+    }
     if (config.dryRun) {
       logger.notice(
-        "Dry run complete \u2014 bundletool/signing were planned but not executed."
+        "Dry run complete \u2014 build-apks and extraction were planned but not executed."
       );
       return;
     }
-    logger.warning(
-      "APK generation is not implemented yet (M3). build-apks lands in M4\u2013M5."
-    );
+    if (extractResult?.extracted) {
+      logger.notice(`Universal APK ready at ${extractResult.apkPath}`);
+    } else {
+      logger.notice(`APK set ready at ${buildResult.apksPath}`);
+    }
   } catch (error) {
     if (error instanceof ActionError || error instanceof Error) {
       setFailed(error.message);

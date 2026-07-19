@@ -29,6 +29,7 @@ export interface SigningConfig {
 export interface ActionConfig {
   command: BundletoolCommand
   aabFile?: string
+  apksFile?: string
   mode: BuildMode
   output?: string
   outputDir?: string

@@ -92,6 +92,7 @@ export function parseInputs(): ParsedInputs {
       'build-apks'
     ) as ActionConfig['command'],
     aabFile: getOptionalInput('aab-file'),
+    apksFile: getOptionalInput('apks-file'),
     mode: getRequiredDefault('mode', 'universal') as ActionConfig['mode'],
     output: getOptionalInput('output'),
     outputDir: getOptionalInput('output-dir'),

@@ -20,6 +20,9 @@ importers:
       '@actions/tool-cache':
         specifier: ^4.0.0
         version: 4.0.0
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.3.11
@@ -1114,6 +1117,9 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
+
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
 
   figlet@1.11.2:
     resolution: {integrity: sha512-VXzWZSFTauu1f4CJbj/EnlpDVaTjO33cp/xgH0CLtPS/aP59i3ElwyR2bquCEsAv2Apv9E29PX5Zy39ipeUqSw==}
@@ -2765,6 +2771,8 @@ snapshots:
   fdir@6.5.0(picomatch@4.0.5):
     optionalDependencies:
       picomatch: 4.0.5
+
+  fflate@0.8.3: {}
 
   figlet@1.11.2:
     dependencies:

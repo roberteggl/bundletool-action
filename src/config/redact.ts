@@ -7,6 +7,7 @@ export function redactConfig(config: ActionConfig): Record<string, unknown> {
   return {
     command: config.command,
     aabFile: config.aabFile,
+    apksFile: config.apksFile,
     mode: config.mode,
     output: config.output,
     outputDir: config.outputDir,

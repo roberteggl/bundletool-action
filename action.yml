@@ -10,6 +10,9 @@ inputs:
   aab-file:
     description: Path to the Android App Bundle (.aab) file
     required: false
+  apks-file:
+    description: Path to an existing .apks archive (required for extract-apks)
+    required: false
   command:
     description: Bundletool command to run (build-apks | extract-apks)
     required: false

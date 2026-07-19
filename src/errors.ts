@@ -47,3 +47,26 @@ export class SigningError extends ActionError {
     this.name = 'SigningError'
   }
 }
+
+/**
+ * Bundletool process execution failures.
+ */
+export class BundletoolError extends ActionError {
+  readonly exitCode?: number
+
+  constructor(message: string, exitCode?: number) {
+    super(message)
+    this.name = 'BundletoolError'
+    this.exitCode = exitCode
+  }
+}
+
+/**
+ * Artifact post-processing failures (zip extract, missing universal.apk, etc.).
+ */
+export class ArtifactError extends ActionError {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ArtifactError'
+  }
+}

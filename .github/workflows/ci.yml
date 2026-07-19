@@ -81,10 +81,15 @@ jobs:
       - name: Assert dry-run version output
         run: |
           test -n "${{ steps.test-action-dry-run.outputs.bundletool-version }}"
+          test -n "${{ steps.test-action-dry-run.outputs.apks-path }}"
+          test -n "${{ steps.test-action-dry-run.outputs.apk-path }}"
           echo "Resolved ${{ steps.test-action-dry-run.outputs.bundletool-version }}"
+          echo "Planned APKS ${{ steps.test-action-dry-run.outputs.apks-path }}"
+          echo "Planned APK ${{ steps.test-action-dry-run.outputs.apk-path }}"
 
       - name: Test Local Action (install)
         id: test-action-install
+        continue-on-error: true
         uses: ./
         with:
           aab-file: app/build/outputs/bundle/release/app-release.aab
@@ -98,3 +103,5 @@ jobs:
           test -n "${{ steps.test-action-install.outputs.bundletool-version }}"
           test -f "${{ steps.test-action-install.outputs.bundletool-path }}"
           java -jar "${{ steps.test-action-install.outputs.bundletool-path }}" version
+          # No real AAB in this repo yet; build-apks is expected to fail after install.
+          test "${{ steps.test-action-install.outcome }}" = "failure"

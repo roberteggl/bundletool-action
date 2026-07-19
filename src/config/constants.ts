@@ -9,6 +9,7 @@ export const BUILD_MODES = ['universal', 'default', 'system'] as const
 export const RESERVED_EXTRA_FLAGS = [
   '--bundle',
   '--output',
+  '--output-dir',
   '--mode',
   '--ks',
   '--ks-pass',
@@ -16,7 +17,8 @@ export const RESERVED_EXTRA_FLAGS = [
   '--key-pass',
   '--device-spec',
   '--connected-device',
-  '--overwrite'
+  '--overwrite',
+  '--apks'
 ] as const
 
 export const SHA256_PATTERN = /^[a-fA-F0-9]{64}$/

@@ -1,4 +1,7 @@
 import * as core from '@actions/core'
+import { extractUniversalApk } from './artifacts/universal-apk.js'
+import { buildApks } from './bundletool/commands/build-apks.js'
+import { extractApks } from './bundletool/commands/extract-apks.js'
 import { ensureBundletool } from './bundletool/installer.js'
 import { ensureJava } from './bundletool/java.js'
 import { CleanupRegistry } from './cleanup.js'
@@ -18,7 +21,7 @@ function emitWarnings(logger: Logger, warnings: ConfigWarning[]): void {
 
 function logPlannedSteps(logger: Logger, config: ActionConfig): void {
   logger.info(
-    'Milestone 3 — signing materialization; build-apks pending M4–M5.'
+    'Milestone 6 — build-apks, universal APK extract, and device-specific extract-apks.'
   )
   logger.info(`Command: ${config.command}`)
   logger.info(`Mode: ${config.mode}`)
@@ -30,6 +33,9 @@ function logPlannedSteps(logger: Logger, config: ActionConfig): void {
 
   if (config.aabFile) {
     logger.info(`AAB file: ${config.aabFile}`)
+  }
+  if (config.apksFile) {
+    logger.info(`APKS file: ${config.apksFile}`)
   }
   if (config.output) {
     logger.info(`Output: ${config.output}`)
@@ -59,10 +65,14 @@ function logPlannedSteps(logger: Logger, config: ActionConfig): void {
   logger.info('Planned pipeline:')
   logger.info('  1. Ensure Java is available')
   logger.info('  2. Download, verify, and cache bundletool')
-  logger.info('  3. Materialize signing credentials (if enabled)')
-  logger.info(`  4. Run bundletool ${config.command}`)
-  if (config.extractUniversalApk && config.mode === 'universal') {
-    logger.info('  5. Extract universal APK from .apks')
+  if (config.command === 'build-apks') {
+    logger.info('  3. Materialize signing credentials (if enabled)')
+    logger.info('  4. Run bundletool build-apks')
+    if (config.extractUniversalApk && config.mode === 'universal') {
+      logger.info('  5. Extract universal APK from .apks')
+    }
+  } else {
+    logger.info('  3. Run bundletool extract-apks')
   }
   logger.info('  6. Set outputs and clean up temporary files')
 }
@@ -70,8 +80,7 @@ function logPlannedSteps(logger: Logger, config: ActionConfig): void {
 /**
  * Main action entrypoint.
  *
- * M3 materializes signing credentials securely. Later milestones implement
- * build-apks execution and artifact extraction.
+ * M6 adds device-specific `extract-apks` alongside the AAB → universal APK path.
  */
 export async function run(): Promise<void> {
   const cleanup = new CleanupRegistry()
@@ -104,6 +113,35 @@ export async function run(): Promise<void> {
       core.setOutput('bundletool-path', installed.jarPath)
     }
 
+    if (!installed.jarPath && !config.dryRun) {
+      throw new ActionError('Bundletool JAR path is missing after install.')
+    }
+
+    const jarPath = installed.jarPath ?? 'bundletool.jar'
+
+    if (config.command === 'extract-apks') {
+      const extractResult = await logger.group('extract-apks', async () => {
+        return extractApks({
+          config,
+          jarPath,
+          logger
+        })
+      })
+
+      core.setOutput('apks-path', extractResult.apksPath)
+      core.setOutput('output-dir', extractResult.outputDir)
+
+      if (config.dryRun) {
+        logger.notice(
+          'Dry run complete — extract-apks was planned but not executed.'
+        )
+        return
+      }
+
+      logger.notice(`Device APKs ready in ${extractResult.outputDir}`)
+      return
+    }
+
     const signing = await logger.group('Signing', async () => {
       return materializeSigning(config.signing, {
         workingDirectory: config.workingDirectory,
@@ -118,16 +156,49 @@ export async function run(): Promise<void> {
       logger.verbose(`Key alias: ${signing.keyAlias}`)
     }
 
+    const buildResult = await logger.group('build-apks', async () => {
+      return buildApks({
+        config,
+        jarPath,
+        signing,
+        logger
+      })
+    })
+
+    const extractResult = await logger.group(
+      'Extract universal APK',
+      async () => {
+        return extractUniversalApk({
+          config,
+          apksPath: buildResult.apksPath,
+          logger
+        })
+      }
+    )
+
+    if (!extractResult?.apksDeleted) {
+      core.setOutput('apks-path', buildResult.apksPath)
+    }
+
+    if (extractResult) {
+      core.setOutput('apk-path', extractResult.apkPath)
+      if (config.outputDir) {
+        core.setOutput('output-dir', config.outputDir)
+      }
+    }
+
     if (config.dryRun) {
       logger.notice(
-        'Dry run complete — bundletool/signing were planned but not executed.'
+        'Dry run complete — build-apks and extraction were planned but not executed.'
       )
       return
     }
 
-    logger.warning(
-      'APK generation is not implemented yet (M3). build-apks lands in M4–M5.'
-    )
+    if (extractResult?.extracted) {
+      logger.notice(`Universal APK ready at ${extractResult.apkPath}`)
+    } else {
+      logger.notice(`APK set ready at ${buildResult.apksPath}`)
+    }
   } catch (error) {
     if (error instanceof ActionError || error instanceof Error) {
       core.setFailed(error.message)

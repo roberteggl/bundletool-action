@@ -18,7 +18,7 @@ set -e
 # 2. Display the latest release tag
 # 3. Prompt the user for a new release tag
 # 4. Validate the new release tag
-# 5. Remind user to update the version field in package.json
+# 5. Remind user to bundle dist/ before tagging
 # 6. Tag a new release
 # 7. Set 'is_major_release' variable
 # 8. Point separate major release tag (e.g. v1, v2) to the new release
@@ -67,13 +67,12 @@ else
 	exit 1
 fi
 
-# 5. Remind user to update the version field in package.json
-echo -e -n "Make sure the version field in package.json is ${BOLD_BLUE}$new_tag${OFF}. Yes? [Y/${BOLD_UNDERLINED}n${OFF}] "
+# 5. Remind user to bundle dist/ before tagging
+echo -e -n "Have you run ${BOLD_BLUE}pnpm bundle${OFF} and committed dist/? Yes? [Y/${BOLD_UNDERLINED}n${OFF}] "
 read -r YN
 
 if [[ ! ($YN == "y" || $YN == "Y") ]]; then
-	# Package.json version field is not up to date
-	echo -e "Please update the package.json version to ${BOLD_PURPLE}$new_tag${OFF} and commit your changes"
+	echo -e "Run ${BOLD_PURPLE}pnpm bundle${OFF}, commit dist/, then re-run this script"
 	exit 1
 fi
 

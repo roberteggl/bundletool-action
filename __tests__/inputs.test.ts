@@ -165,11 +165,39 @@ describe('parseInputs', () => {
   it('requires device-spec for extract-apks', () => {
     mockInputs({
       command: 'extract-apks',
+      'apks-file': 'app.apks',
       'output-dir': 'out',
       sign: 'false'
     })
 
     expect(() => parseInputs()).toThrow(/device-spec/)
+  })
+
+  it('requires apks-file for extract-apks', () => {
+    mockInputs({
+      command: 'extract-apks',
+      'device-spec': 'device.json',
+      'output-dir': 'out',
+      sign: 'false'
+    })
+
+    expect(() => parseInputs()).toThrow(/apks-file/)
+  })
+
+  it('accepts extract-apks with apks-file, device-spec, and output-dir', () => {
+    mockInputs({
+      command: 'extract-apks',
+      'apks-file': 'app.apks',
+      'device-spec': 'device.json',
+      'output-dir': 'out',
+      sign: 'false'
+    })
+
+    const { config } = parseInputs()
+    expect(config.command).toBe('extract-apks')
+    expect(config.apksFile).toBe('app.apks')
+    expect(config.deviceSpec).toBe('device.json')
+    expect(config.outputDir).toBe('out')
   })
 
   it('warns when extract-universal-apk is set for non-universal mode', () => {
