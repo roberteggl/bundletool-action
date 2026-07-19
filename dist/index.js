@@ -34745,7 +34745,7 @@ async function run() {
       setOutput("output-dir", extractResult2.outputDir);
       if (config.dryRun) {
         logger.notice(
-          "Dry run complete \u2014 extract-apks was planned but not executed."
+          "Dry run complete - extract-apks was planned but not executed."
         );
         return;
       }
@@ -34793,7 +34793,7 @@ async function run() {
     }
     if (config.dryRun) {
       logger.notice(
-        "Dry run complete \u2014 build-apks and extraction were planned but not executed."
+        "Dry run complete - build-apks and extraction were planned but not executed."
       );
       return;
     }

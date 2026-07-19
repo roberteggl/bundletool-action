@@ -24,6 +24,15 @@
       "matchManagers": ["github-actions"],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "GitHub Actions (non-major)"
+    },
+    {
+      "description": "Rebundle dist/ after production dependency updates",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["dependencies"],
+      "postUpgradeTasks": {
+        "commands": ["pnpm install", "pnpm bundle"],
+        "fileFilters": ["dist/**"]
+      }
     }
   ]
 }
