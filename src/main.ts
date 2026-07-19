@@ -1,12 +1,14 @@
 import * as core from '@actions/core'
 import { ensureBundletool } from './bundletool/installer.js'
 import { ensureJava } from './bundletool/java.js'
+import { CleanupRegistry } from './cleanup.js'
 import { parseInputs } from './config/inputs.js'
 import { redactConfig } from './config/redact.js'
 import type { ActionConfig } from './config/types.js'
 import type { ConfigWarning } from './config/validate.js'
 import { ActionError } from './errors.js'
 import { createLogger, type Logger } from './logging/logger.js'
+import { materializeSigning } from './signing/keystore.js'
 
 function emitWarnings(logger: Logger, warnings: ConfigWarning[]): void {
   for (const warning of warnings) {
@@ -15,7 +17,9 @@ function emitWarnings(logger: Logger, warnings: ConfigWarning[]): void {
 }
 
 function logPlannedSteps(logger: Logger, config: ActionConfig): void {
-  logger.info('Milestone 2 — bundletool install; build/sign pending M3–M5.')
+  logger.info(
+    'Milestone 3 — signing materialization; build-apks pending M4–M5.'
+  )
   logger.info(`Command: ${config.command}`)
   logger.info(`Mode: ${config.mode}`)
   logger.info(`Bundletool version: ${config.bundletool.version}`)
@@ -41,9 +45,7 @@ function logPlannedSteps(logger: Logger, config: ActionConfig): void {
   }
 
   if (config.signing.enabled) {
-    logger.info(
-      'Signing: enabled (keystore will be materialized in a later milestone)'
-    )
+    logger.info('Signing: enabled')
   } else if (config.signing.signRequested) {
     logger.info('Signing: requested but no keystore material was provided')
   } else {
@@ -68,13 +70,16 @@ function logPlannedSteps(logger: Logger, config: ActionConfig): void {
 /**
  * Main action entrypoint.
  *
- * M2 installs (or dry-run resolves) bundletool. Later milestones implement
- * signing, execution, and artifact extraction.
+ * M3 materializes signing credentials securely. Later milestones implement
+ * build-apks execution and artifact extraction.
  */
 export async function run(): Promise<void> {
+  const cleanup = new CleanupRegistry()
+  let logger = createLogger(false)
+
   try {
     const { config, warnings } = parseInputs()
-    const logger = createLogger(config.verbose)
+    logger = createLogger(config.verbose)
 
     emitWarnings(logger, warnings)
 
@@ -99,15 +104,29 @@ export async function run(): Promise<void> {
       core.setOutput('bundletool-path', installed.jarPath)
     }
 
+    const signing = await logger.group('Signing', async () => {
+      return materializeSigning(config.signing, {
+        workingDirectory: config.workingDirectory,
+        dryRun: config.dryRun,
+        cleanup,
+        logger
+      })
+    })
+
+    if (signing) {
+      logger.verbose(`Keystore ready at ${signing.keystorePath}`)
+      logger.verbose(`Key alias: ${signing.keyAlias}`)
+    }
+
     if (config.dryRun) {
       logger.notice(
-        'Dry run complete — bundletool was resolved but not downloaded.'
+        'Dry run complete — bundletool/signing were planned but not executed.'
       )
       return
     }
 
     logger.warning(
-      'APK generation is not implemented yet (M2). Signing and build-apks land in M3–M5.'
+      'APK generation is not implemented yet (M3). build-apks lands in M4–M5.'
     )
   } catch (error) {
     if (error instanceof ActionError || error instanceof Error) {
@@ -116,5 +135,7 @@ export async function run(): Promise<void> {
     }
 
     core.setFailed(`Unexpected error: ${String(error)}`)
+  } finally {
+    await cleanup.cleanup(logger)
   }
 }

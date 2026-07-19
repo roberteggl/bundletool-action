@@ -28,6 +28,7 @@ lib-cov
 
 # Coverage directory used by tools like istanbul
 coverage
+test-report.junit.xml
 *.lcov
 
 # nyc test coverage

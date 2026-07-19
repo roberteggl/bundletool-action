@@ -30,17 +30,18 @@
   },
   "scripts": {
     "bundle": "pnpm format:write && pnpm package",
-    "ci-test": "vitest run --coverage",
+    "ci-test": "vitest run --coverage --reporter=default --reporter=junit --outputFile.junit=test-report.junit.xml",
     "coverage": "make-coverage-badge --output-path ./badges/coverage.svg",
     "format:write": "biome check --write .",
     "format:check": "biome format .",
     "lint": "biome check .",
     "local-action": "local-action . src/main.ts .env",
-    "package": "rimraf ./dist && rollup --config rollup.config.ts --configPlugin @rollup/plugin-typescript",
+    "package": "rimraf ./dist && rollup --config rollup.config.ts --configPlugin rollup-plugin-esbuild",
     "package:watch": "pnpm package -- --watch",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "all": "pnpm format:write && pnpm lint && pnpm test && pnpm coverage && pnpm package"
+    "all": "pnpm format:write && pnpm lint && pnpm typecheck && pnpm test && pnpm coverage && pnpm package",
+    "typecheck": "tsc --noEmit"
   },
   "license": "MIT",
   "dependencies": {
@@ -54,14 +55,15 @@
     "@github/local-action": "^7.0.1",
     "@rollup/plugin-commonjs": "^29.0.0",
     "@rollup/plugin-node-resolve": "^16.0.3",
-    "@rollup/plugin-typescript": "^12.3.0",
     "@types/node": "^24.13.3",
     "@vitest/coverage-v8": "^3.2.4",
+    "esbuild": "^0.28.1",
     "make-coverage-badge": "^1.2.0",
     "rimraf": "^6.1.0",
     "rollup": "^4.57.1",
-    "vitest": "^3.2.4",
-    "typescript": "^7.0.2"
+    "rollup-plugin-esbuild": "^6.2.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "*"

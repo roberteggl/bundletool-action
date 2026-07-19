@@ -3,9 +3,9 @@
 GitHub Action that converts Android App Bundles (`.aab`) into APKs using
 [Google bundletool](https://developer.android.com/tools/bundletool).
 
-> **Status:** Milestone 2 — validates inputs and installs Google bundletool
-> (download, cache, optional SHA-256). Signing and APK generation land in later
-> milestones.
+> **Status:** Milestone 3 — installs bundletool and securely materializes
+> signing credentials (keystore path or base64, password files, cleanup).
+> APK generation lands in M4–M5.
 
 ## Features (planned)
 
@@ -92,7 +92,8 @@ with clear errors. Secrets are masked in logs via `core.setSecret`.
 | `bundletool-path`    | Path to the bundletool JAR            |
 
 Outputs `bundletool-version` and `bundletool-path` are set by the installer
-(M2). Artifact outputs are populated by later milestones.
+(M2). Signing credentials are materialized to temp files (M3) and removed
+during cleanup. Artifact outputs are populated by later milestones.
 
 ## Development
 
@@ -101,6 +102,7 @@ Requires Node.js 24+ and [pnpm](https://pnpm.io/) 10+.
 ```bash
 pnpm install
 pnpm test
+pnpm typecheck
 pnpm package
 ```
 
@@ -125,7 +127,7 @@ pnpm local-action
 | M0        | Scaffold, inputs, dry-run planning ✅ |
 | M1        | Hardened config & logging ✅          |
 | M2        | Bundletool installer + cache + SHA ✅ |
-| M3        | Signing materialization               |
+| M3        | Signing materialization ✅            |
 | M4        | `build-apks` execution                |
 | M5        | Universal APK extraction              |
 | M6        | Device-specific extraction            |

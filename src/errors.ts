@@ -37,3 +37,13 @@ export class DownloadError extends ActionError {
     this.name = 'DownloadError'
   }
 }
+
+/**
+ * Keystore decoding or signing credential materialization failures.
+ */
+export class SigningError extends ActionError {
+  constructor(message: string) {
+    super(message)
+    this.name = 'SigningError'
+  }
+}

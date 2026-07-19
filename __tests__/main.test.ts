@@ -5,12 +5,17 @@ import * as core from '@actions/core'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import * as installer from '../src/bundletool/installer.js'
 import * as java from '../src/bundletool/java.js'
+import * as signing from '../src/signing/keystore.js'
 
 vi.mock('@actions/core', () => import('../__fixtures__/core.js'))
 vi.mock('../src/bundletool/java.js', () => import('../__fixtures__/java.js'))
 vi.mock(
   '../src/bundletool/installer.js',
   () => import('../__fixtures__/installer.js')
+)
+vi.mock(
+  '../src/signing/keystore.js',
+  () => import('../__fixtures__/signing.js')
 )
 
 const { run } = await import('../src/main.js')
@@ -43,6 +48,8 @@ describe('main.ts', () => {
       fromCache: false,
       dryRun: true
     })
+
+    signing.materializeSigning.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -55,6 +62,7 @@ describe('main.ts', () => {
     expect(core.setFailed).not.toHaveBeenCalled()
     expect(java.ensureJava).toHaveBeenCalledWith('java', expect.anything())
     expect(installer.ensureBundletool).toHaveBeenCalled()
+    expect(signing.materializeSigning).toHaveBeenCalled()
     expect(core.setOutput).toHaveBeenCalledWith('bundletool-version', '1.18.3')
     expect(core.notice).toHaveBeenCalledWith(
       expect.stringContaining('Dry run complete')
@@ -86,6 +94,41 @@ describe('main.ts', () => {
     )
     expect(core.warning).toHaveBeenCalledWith(
       expect.stringContaining('APK generation is not implemented yet')
+    )
+  })
+
+  it('materializes signing when enabled', async () => {
+    mockInputs({
+      'aab-file': 'app.aab',
+      command: 'build-apks',
+      keystore: 'release.jks',
+      'keystore-password': 'secret',
+      'key-alias': 'upload',
+      sign: 'true',
+      'dry-run': 'false'
+    })
+
+    installer.ensureBundletool.mockResolvedValue({
+      version: '1.18.3',
+      jarPath: '/cache/bundletool.jar',
+      downloadUrl:
+        'https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar',
+      fromCache: true,
+      dryRun: false
+    })
+
+    signing.materializeSigning.mockResolvedValue({
+      keystorePath: '/tmp/signing.keystore',
+      keyAlias: 'upload',
+      keystorePasswordFile: '/tmp/keystore.pass',
+      keyPasswordFile: '/tmp/key.pass'
+    })
+
+    await run()
+
+    expect(signing.materializeSigning).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: true, keyAlias: 'upload' }),
+      expect.objectContaining({ dryRun: false })
     )
   })
 
