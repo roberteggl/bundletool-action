@@ -1,0 +1,108 @@
+name: Bundletool Action
+description: Convert Android App Bundles (.aab) to APKs using Google bundletool
+author: Robert Eggl
+
+branding:
+  icon: package
+  color: green
+
+inputs:
+  aab-file:
+    description: Path to the Android App Bundle (.aab) file
+    required: false
+  command:
+    description: Bundletool command to run (build-apks | extract-apks)
+    required: false
+    default: build-apks
+  mode:
+    description: Bundletool build mode (universal | default | system)
+    required: false
+    default: universal
+  output:
+    description: Output path for the .apks archive or extracted APK
+    required: false
+  output-dir:
+    description: Directory for extracted APK files
+    required: false
+  bundletool-version:
+    description: Bundletool version tag to use (e.g. 1.18.3) or latest
+    required: false
+    default: latest
+  bundletool-url:
+    description: Override URL for downloading the bundletool JAR
+    required: false
+  bundletool-sha256:
+    description: Expected SHA-256 checksum of the bundletool JAR
+    required: false
+  cache:
+    description: Cache the downloaded bundletool JAR with the Actions tool cache
+    required: false
+    default: 'true'
+  java-bin:
+    description: Path to the Java executable
+    required: false
+    default: java
+  keystore:
+    description: Path to an existing keystore file used for signing
+    required: false
+  keystore-base64:
+    description: Base64-encoded keystore contents (alternative to keystore)
+    required: false
+  keystore-password:
+    description: Keystore password
+    required: false
+  key-alias:
+    description: Keystore key alias
+    required: false
+  key-password:
+    description:
+      Private key password (defaults to keystore-password when omitted)
+    required: false
+  sign:
+    description: Whether to sign APKs when keystore credentials are provided
+    required: false
+    default: 'true'
+  device-spec:
+    description: Path to a device specification JSON file
+    required: false
+  extract-universal-apk:
+    description:
+      Extract universal.apk from the .apks archive when mode is universal
+    required: false
+    default: 'true'
+  keep-apks:
+    description: Keep the generated .apks archive after extraction
+    required: false
+    default: 'true'
+  extra-args:
+    description: Additional whitespace-separated arguments passed to bundletool
+    required: false
+  working-directory:
+    description: Working directory for resolving relative paths
+    required: false
+    default: .
+  dry-run:
+    description:
+      Validate inputs and log the planned actions without executing them
+    required: false
+    default: 'false'
+  verbose:
+    description: Enable verbose logging
+    required: false
+    default: 'false'
+
+outputs:
+  apks-path:
+    description: Path to the generated .apks archive (when kept)
+  apk-path:
+    description: Path to the extracted universal APK (when extracted)
+  output-dir:
+    description: Directory containing extracted APK files
+  bundletool-version:
+    description: Resolved bundletool version that was used
+  bundletool-path:
+    description: Path to the bundletool JAR on the runner
+
+runs:
+  using: node24
+  main: dist/index.js

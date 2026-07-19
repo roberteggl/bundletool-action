@@ -1,0 +1,86 @@
+name: Continuous Integration
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test-typescript:
+    name: TypeScript Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        id: setup-node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint and Format
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm ci-test
+
+  test-action:
+    name: GitHub Actions Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Test Local Action (dry-run)
+        id: test-action-dry-run
+        uses: ./
+        with:
+          aab-file: app/build/outputs/bundle/release/app-release.aab
+          sign: false
+          dry-run: true
+          verbose: true
+
+      - name: Assert dry-run version output
+        run: |
+          test -n "${{ steps.test-action-dry-run.outputs.bundletool-version }}"
+          echo "Resolved ${{ steps.test-action-dry-run.outputs.bundletool-version }}"
+
+      - name: Test Local Action (install)
+        id: test-action-install
+        uses: ./
+        with:
+          aab-file: app/build/outputs/bundle/release/app-release.aab
+          bundletool-version: '1.18.3'
+          sign: false
+          dry-run: false
+          verbose: true
+
+      - name: Assert install outputs
+        run: |
+          test -n "${{ steps.test-action-install.outputs.bundletool-version }}"
+          test -f "${{ steps.test-action-install.outputs.bundletool-path }}"
+          java -jar "${{ steps.test-action-install.outputs.bundletool-path }}" version

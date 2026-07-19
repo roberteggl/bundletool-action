@@ -1,0 +1,10 @@
+# Single-package repo; required by pnpm 11 for install settings.
+packages:
+  - '.'
+
+strictPeerDependencies: false
+autoInstallPeers: true
+
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true
