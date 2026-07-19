@@ -8,7 +8,7 @@
 GitHub Action that converts Android App Bundles (`.aab`) into APKs using
 [Google bundletool](https://developer.android.com/tools/bundletool).
 
-> **Status:** v0.1 — early release. Pin `roberteggl/bundletool-action@v0.1.0`
+> **Status:** v0.1 - early release. Pin `roberteggl/bundletool-action@v0.1.0`
 > (or `@v0` for the latest 0.x).
 
 ## Features
@@ -134,7 +134,7 @@ set (prefer `mode: default` for device-targeted builds).
 
 This action is a modern replacement for
 [`ethanneff/bundletool-action`](https://github.com/ethanneff/bundletool-action).
-The common case — signed universal APK from an AAB — works the same; inputs
+The common case - signed universal APK from an AAB - works the same; inputs
 use kebab-case and signing is optional.
 
 ### Before
@@ -180,7 +180,7 @@ use kebab-case and signing is optional.
     path: ${{ steps.bundletool.outputs.apk-path }}
 ```
 
-Add `setup-java` before the action — Java is not bundled. Pin
+Add `setup-java` before the action - Java is not bundled. Pin
 `roberteggl/bundletool-action@v0.1.0` (or `@v0` for the latest 0.x) instead of
 `@main`.
 
@@ -206,19 +206,19 @@ Add `setup-java` before the action — Java is not bundled. Pin
 
 ### Behavior differences
 
-- **Signing is optional** — set `sign: false` to build without a keystore (for
+- **Signing is optional** - set `sign: false` to build without a keystore (for
   example in tests). When signing, provide the same secrets as before.
-- **Default output names** — `{aab-basename}.apk` and `{aab-basename}.apks` in
+- **Default output names** - `{aab-basename}.apk` and `{aab-basename}.apks` in
   the working directory, same as the original action.
-- **Keeps `.apks`** — the intermediate archive is retained (`keep-apks: true`).
+- **Keeps `.apks`** - the intermediate archive is retained (`keep-apks: true`).
   Set `keep-apks: false` to delete it after extracting the universal APK.
-- **No shell `unzip`** — extraction runs in Node; no dependency on system
+- **No shell `unzip`** - extraction runs in Node; no dependency on system
   `unzip`/`mv`.
-- **Bundletool caching** — the JAR is cached via `@actions/tool-cache`
+- **Bundletool caching** - the JAR is cached via `@actions/tool-cache`
   (`cache: true` by default).
-- **More commands** — `command: extract-apks` for device-specific APKs from an
+- **More commands** - `command: extract-apks` for device-specific APKs from an
   existing `.apks` file; `dry-run` and `verbose` for debugging.
-- **Runtime** — Node 24 (vs Node 20). Runs on `ubuntu-latest` and `macos`;
+- **Runtime** - Node 24 (vs Node 20). Runs on `ubuntu-latest` and `macos`;
   Windows is not explicitly tested.
 
 ## Development

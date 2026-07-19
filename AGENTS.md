@@ -7,8 +7,8 @@ Maintainer and agent notes for `bundletool-action`. User-facing docs live in
 
 TypeScript GitHub Action (Node 24) that wraps [Google bundletool](https://github.com/google/bundletool):
 
-- `build-apks` — AAB → `.apks` (default mode: universal APK extraction)
-- `extract-apks` — device-specific APKs from an existing `.apks` archive
+- `build-apks` - AAB → `.apks` (default mode: universal APK extraction)
+- `extract-apks` - device-specific APKs from an existing `.apks` archive
 - Optional signing, bundletool download/cache, dry-run, verbose logging
 
 Entry: `src/main.ts` → bundled to `dist/index.js` (committed; required for

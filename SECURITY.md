@@ -10,7 +10,7 @@
 
 **Please do not open public GitHub issues for security vulnerabilities.**
 
-Report security issues privately to [robert@eggl.dev](mailto:robert@eggl.dev).
+Report security issues privately to [security@eggl.dev](mailto:security@eggl.dev).
 Include:
 
 - Description of the issue and potential impact

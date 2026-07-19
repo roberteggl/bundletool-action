@@ -1,4 +1,4 @@
-name: Bundletool Action
+name: AAB to APK with Bundletool
 description: Convert Android App Bundles (.aab) to APKs using Google bundletool
 author: Robert Eggl
 

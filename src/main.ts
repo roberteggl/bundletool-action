@@ -133,7 +133,7 @@ export async function run(): Promise<void> {
 
       if (config.dryRun) {
         logger.notice(
-          'Dry run complete — extract-apks was planned but not executed.'
+          'Dry run complete - extract-apks was planned but not executed.'
         )
         return
       }
@@ -189,7 +189,7 @@ export async function run(): Promise<void> {
 
     if (config.dryRun) {
       logger.notice(
-        'Dry run complete — build-apks and extraction were planned but not executed.'
+        'Dry run complete - build-apks and extraction were planned but not executed.'
       )
       return
     }
