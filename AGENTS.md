@@ -37,15 +37,15 @@ Automated on `v*` tag push (`.github/workflows/release.yml`):
 1. Validate (lint, test, bundle, verify `dist/` committed)
 2. Changelog via [git-cliff](https://git-cliff.org/) (`cliff.toml`)
 3. GitHub Release (`softprops/action-gh-release`)
-4. Move major version tag (e.g. `v0` for `v0.1.0`)
+4. Move major version tag (e.g. `v1` for `v1.0.0`)
 
 ```bash
 pnpm bundle
 git add dist/
 git commit -m "chore: bundle dist for release"   # if dist/ changed
 
-git tag v0.1.0
-git push origin v0.1.0
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 Use [Conventional Commits](https://www.conventionalcommits.org/) on `main` for
@@ -65,11 +65,9 @@ release notes grouping.
 | M7        | Hardening, docs, E2E CI fixtures      | ✅     |
 | M8        | Release automation, CodeQL            | ✅     |
 
-### Post-v0.1 ideas
+### Post-1.0 ideas
 
 - GitHub Marketplace listing
-- macOS integration CI job
-- Windows support (if bundletool + zip path proven)
 - Input aliases for `ethanneff/bundletool-action` camelCase (optional)
 
 ## Layout

@@ -218,8 +218,7 @@ Add `setup-java` before the action - Java is not bundled. Pin
   (`cache: true` by default).
 - **More commands** - `command: extract-apks` for device-specific APKs from an
   existing `.apks` file; `dry-run` and `verbose` for debugging.
-- **Runtime** - Node 24 (vs Node 20). Runs on `ubuntu-latest` and `macos`;
-  Windows is not explicitly tested.
+- **Runtime** - Node 24 (vs Node 20).
 
 ## Development
 
