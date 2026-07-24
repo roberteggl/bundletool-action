@@ -43,7 +43,7 @@
     "all": "pnpm format:write && pnpm lint && pnpm typecheck && pnpm test && pnpm coverage && pnpm package",
     "typecheck": "tsc --noEmit"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "dependencies": {
     "@actions/core": "^3.0.1",
     "@actions/exec": "^3.0.0",

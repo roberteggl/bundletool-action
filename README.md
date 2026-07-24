@@ -3,7 +3,7 @@
 [![Continuous Integration](https://github.com/roberteggl/bundletool-action/actions/workflows/ci.yml/badge.svg)](https://github.com/roberteggl/bundletool-action/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/roberteggl/bundletool-action/graph/badge.svg?token=YST64KYO88)](https://codecov.io/github/roberteggl/bundletool-action)
 ![Coverage](./badges/coverage.svg)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 GitHub Action that converts Android App Bundles (`.aab`) into APKs using
 [Google bundletool](https://developer.android.com/tools/bundletool).
@@ -247,4 +247,4 @@ pnpm local-action
 
 ## License
 
-MIT
+Apache-2.0. See [`LICENSE`](./LICENSE) and [`LICENSES/`](./LICENSES/).
