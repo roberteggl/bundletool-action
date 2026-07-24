@@ -5,7 +5,7 @@
   "author": "Robert Eggl",
   "type": "module",
   "private": true,
-  "packageManager": "pnpm@11.15.0",
+  "packageManager": "pnpm@11.15.1",
   "homepage": "https://github.com/roberteggl/bundletool-action",
   "repository": {
     "type": "git",
@@ -26,7 +26,7 @@
   },
   "engines": {
     "node": ">=24.18.0",
-    "pnpm": ">=11.13.1"
+    "pnpm": ">=11.15.1"
   },
   "scripts": {
     "bundle": "pnpm format:write && pnpm package",
