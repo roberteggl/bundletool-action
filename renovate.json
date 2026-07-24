@@ -10,31 +10,36 @@
   "labels": ["dependencies"],
   "dependencyDashboard": true,
   "rangeStrategy": "bump",
+  "platformAutomerge": true,
   "packageRules": [
     {
       "description": "Keep @biomejs/biome and biome.json $schema in one PR",
       "matchPackageNames": ["@biomejs/biome"],
-      "groupName": "@biomejs/biome"
+      "groupName": "@biomejs/biome",
+      "automerge": true
     },
     {
-      "description": "Group non-major pnpm development dependency updates",
+      "description": "Automerge non-major pnpm development dependency updates",
       "matchManagers": ["npm"],
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["minor", "patch"],
       "matchPackageNames": ["!@biomejs/biome"],
-      "groupName": "pnpm devDependencies (non-major)"
+      "groupName": "pnpm devDependencies (non-major)",
+      "automerge": true
     },
     {
-      "description": "Group patch updates for pnpm production dependencies",
+      "description": "Automerge patch updates for pnpm production dependencies",
       "matchManagers": ["npm"],
       "matchDepTypes": ["dependencies"],
       "matchUpdateTypes": ["patch"],
-      "groupName": "pnpm dependencies (patch)"
+      "groupName": "pnpm dependencies (patch)",
+      "automerge": true
     },
     {
       "description": "Group all GitHub Actions updates",
       "matchManagers": ["github-actions"],
-      "groupName": "GitHub Actions"
+      "groupName": "GitHub Actions",
+      "automerge": true
     },
     {
       "description": "Rebundle dist/ after production dependency updates",
