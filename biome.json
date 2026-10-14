@@ -10,7 +10,6 @@
       "**",
       "!dist",
       "!coverage",
-      "!badges",
       "!__fixtures__/android",
       "!**/package-lock.json",
       "!**/pnpm-lock.yaml"

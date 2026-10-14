@@ -31,7 +31,6 @@
   "scripts": {
     "bundle": "pnpm format:write && pnpm package",
     "ci-test": "vitest run --coverage --reporter=default --reporter=junit --outputFile.junit=test-report.junit.xml",
-    "coverage": "make-coverage-badge --output-path ./badges/coverage.svg",
     "format:write": "biome check --write .",
     "format:check": "biome format .",
     "lint": "biome check .",
@@ -40,7 +39,7 @@
     "package:watch": "pnpm package -- --watch",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "all": "pnpm format:write && pnpm lint && pnpm typecheck && pnpm test && pnpm coverage && pnpm package",
+    "all": "pnpm format:write && pnpm lint && pnpm typecheck && pnpm test && pnpm package",
     "typecheck": "tsc --noEmit"
   },
   "license": "Apache-2.0",
@@ -59,7 +58,6 @@
     "@types/node": "24.19.2",
     "@vitest/coverage-v8": "5.0.3",
     "esbuild": "0.28.2",
-    "make-coverage-badge": "1.2.0",
     "rimraf": "6.1.3",
     "rollup": "4.64.5",
     "rollup-plugin-esbuild": "6.2.1",

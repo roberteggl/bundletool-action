@@ -1,10 +1,8 @@
 # Bundletool Action
 
 [![Continuous Integration](https://github.com/roberteggl/bundletool-action/actions/workflows/ci.yml/badge.svg)](https://github.com/roberteggl/bundletool-action/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/github/roberteggl/bundletool-action/graph/badge.svg?token=YST64KYO88)](https://codecov.io/github/roberteggl/bundletool-action)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=roberteggl_bundletool-action&metric=coverage)](https://sonarcloud.io/summary/new_code?id=roberteggl_bundletool-action)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=roberteggl_bundletool-action&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=roberteggl_bundletool-action)
-![Coverage](./badges/coverage.svg)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![REUSE status](https://api.reuse.software/badge/github.com/roberteggl/bundletool-action)](https://api.reuse.software/info/github.com/roberteggl/bundletool-action)
 
