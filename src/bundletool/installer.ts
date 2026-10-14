@@ -22,7 +22,7 @@ export interface InstallOptions {
   logger: Logger
 }
 
-async function jarFromCache(version: string): Promise<string | undefined> {
+function jarFromCache(version: string): string | undefined {
   const cachedDir = tc.find(TOOL_NAME, version)
   if (!cachedDir) {
     return undefined
@@ -81,7 +81,7 @@ export async function ensureBundletool(
   }
 
   if (cache) {
-    const cachedJar = await jarFromCache(release.version)
+    const cachedJar = jarFromCache(release.version)
     if (cachedJar) {
       logger.info(`Using cached bundletool ${release.version} at ${cachedJar}`)
 

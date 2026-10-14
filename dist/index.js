@@ -30630,6 +30630,9 @@ function unzipSync(data, opts) {
     return files;
 }
 
+function normalizeZipEntryName(key) {
+  return key.replaceAll("\\", "/");
+}
 async function extractZipEntry(zipPath, entryName, destinationPath) {
   let archive;
   try {
@@ -30648,13 +30651,14 @@ async function extractZipEntry(zipPath, entryName, destinationPath) {
     );
   }
   const match = Object.keys(entries).find((key) => {
-    const name = key.replace(/\\/g, "/");
+    const name = normalizeZipEntryName(key);
     return name === entryName || basename(name) === entryName;
   });
   if (!match || !entries[match]) {
-    const available = Object.keys(entries).map((key) => basename(key.replace(/\\/g, "/"))).filter(Boolean).join(", ");
+    const available = Object.keys(entries).map((key) => basename(normalizeZipEntryName(key))).filter(Boolean).join(", ");
+    const foundSuffix = available ? ` Found: ${available}` : "";
     throw new ArtifactError(
-      `Entry "${entryName}" not found in ${zipPath}.${available ? ` Found: ${available}` : ""}`
+      `Entry "${entryName}" not found in ${zipPath}.${foundSuffix}`
     );
   }
   await mkdir$1(dirname(destinationPath), { recursive: true });
@@ -34095,7 +34099,7 @@ async function verifySha256(filePath, expected) {
 
 const TOOL_NAME = "bundletool";
 const JAR_NAME = "bundletool.jar";
-async function jarFromCache(version) {
+function jarFromCache(version) {
   const cachedDir = find(TOOL_NAME, version);
   if (!cachedDir) {
     return void 0;
@@ -34136,7 +34140,7 @@ async function ensureBundletool(source, options) {
     };
   }
   if (cache) {
-    const cachedJar = await jarFromCache(release.version);
+    const cachedJar = jarFromCache(release.version);
     if (cachedJar) {
       logger.info(`Using cached bundletool ${release.version} at ${cachedJar}`);
       if (source.sha256) {
@@ -34186,6 +34190,16 @@ async function ensureJava(javaBin, logger) {
   logger.info(`Java is available (${javaBin})`);
 }
 
+async function removeTarget(target, logger) {
+  try {
+    await rmRF(target);
+    logger.verbose(`Cleaned up ${target}`);
+  } catch (error) {
+    logger.warning(
+      `Failed to clean up ${target}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
 class CleanupRegistry {
   paths = /* @__PURE__ */ new Set();
   register(targetPath) {
@@ -34194,16 +34208,10 @@ class CleanupRegistry {
   async cleanup(logger) {
     const targets = [...this.paths].reverse();
     this.paths.clear();
-    for (const target of targets) {
-      try {
-        await rmRF(target);
-        logger.verbose(`Cleaned up ${target}`);
-      } catch (error) {
-        logger.warning(
-          `Failed to clean up ${target}: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    }
+    await targets.reduce(
+      (previous, target) => previous.then(() => removeTarget(target, logger)),
+      Promise.resolve()
+    );
   }
 }
 
@@ -34493,7 +34501,12 @@ function redactConfig(config) {
   };
 }
 
-function createLogger(verbose) {
+function createLogger(options) {
+  const writeVerbose = options.verbose ? (message) => {
+    info(`[verbose] ${message}`);
+  } : (message) => {
+    debug(message);
+  };
   return {
     info(message) {
       info(message);
@@ -34511,11 +34524,7 @@ function createLogger(verbose) {
       debug(message);
     },
     verbose(message) {
-      if (verbose) {
-        info(`[verbose] ${message}`);
-      } else {
-        debug(message);
-      }
+      writeVerbose(message);
     },
     async group(name, fn) {
       startGroup(name);
@@ -34557,39 +34566,38 @@ async function createSigningTempDir(cleanup) {
   return directory;
 }
 
-async function resolveKeystorePath(signing, workingDirectory, tempDir, cleanup, logger) {
-  if (signing.keystoreBase64) {
-    let bytes;
-    try {
-      bytes = Buffer.from(signing.keystoreBase64, "base64");
-    } catch (error) {
-      throw new SigningError(
-        `Failed to decode keystore-base64: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-    if (bytes.length === 0) {
-      throw new SigningError(
-        'Input "keystore-base64" decoded to an empty keystore.'
-      );
-    }
-    const keystorePath2 = resolve(tempDir, "signing.keystore");
-    try {
-      await writeFile$1(keystorePath2, bytes, { mode: 384 });
-    } catch (error) {
-      throw new SigningError(
-        `Failed to write decoded keystore: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-    cleanup.register(keystorePath2);
-    logger.info("Materialized keystore from keystore-base64");
-    return keystorePath2;
-  }
-  if (!signing.keystore) {
+function decodeKeystoreBase64(keystoreBase64) {
+  let bytes;
+  try {
+    bytes = Buffer.from(keystoreBase64, "base64");
+  } catch (error) {
     throw new SigningError(
-      'Signing is enabled but neither "keystore" nor "keystore-base64" was provided.'
+      `Failed to decode keystore-base64: ${error instanceof Error ? error.message : String(error)}`
     );
   }
-  const keystorePath = isAbsolute(signing.keystore) ? signing.keystore : resolve(workingDirectory, signing.keystore);
+  if (bytes.length === 0) {
+    throw new SigningError(
+      'Input "keystore-base64" decoded to an empty keystore.'
+    );
+  }
+  return bytes;
+}
+async function materializeKeystoreFromBase64(keystoreBase64, tempDir, cleanup, logger) {
+  const bytes = decodeKeystoreBase64(keystoreBase64);
+  const keystorePath = resolve(tempDir, "signing.keystore");
+  try {
+    await writeFile$1(keystorePath, bytes, { mode: 384 });
+  } catch (error) {
+    throw new SigningError(
+      `Failed to write decoded keystore: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+  cleanup.register(keystorePath);
+  logger.info("Materialized keystore from keystore-base64");
+  return keystorePath;
+}
+async function resolveExistingKeystorePath(keystore, workingDirectory, logger) {
+  const keystorePath = isAbsolute(keystore) ? keystore : resolve(workingDirectory, keystore);
   try {
     await access$1(keystorePath);
   } catch {
@@ -34597,6 +34605,22 @@ async function resolveKeystorePath(signing, workingDirectory, tempDir, cleanup, 
   }
   logger.info(`Using keystore at ${keystorePath}`);
   return keystorePath;
+}
+async function resolveKeystorePath(signing, workingDirectory, tempDir, cleanup, logger) {
+  if (signing.keystoreBase64) {
+    return materializeKeystoreFromBase64(
+      signing.keystoreBase64,
+      tempDir,
+      cleanup,
+      logger
+    );
+  }
+  if (!signing.keystore) {
+    throw new SigningError(
+      'Signing is enabled but neither "keystore" nor "keystore-base64" was provided.'
+    );
+  }
+  return resolveExistingKeystorePath(signing.keystore, workingDirectory, logger);
 }
 async function materializeSigning(signing, options) {
   const { workingDirectory, dryRun, cleanup, logger } = options;
@@ -34705,12 +34729,70 @@ ${JSON.stringify(redactConfig(config), null, 2)}`
   }
   logger.info("  6. Set outputs and clean up temporary files");
 }
+async function runExtractApksCommand(config, jarPath, logger) {
+  const extractResult = await logger.group("extract-apks", async () => {
+    return extractApks({
+      config,
+      jarPath,
+      logger
+    });
+  });
+  setOutput("apks-path", extractResult.apksPath);
+  setOutput("output-dir", extractResult.outputDir);
+  if (config.dryRun) {
+    logger.notice(
+      "Dry run complete - extract-apks was planned but not executed."
+    );
+    return;
+  }
+  logger.notice(`Device APKs ready in ${extractResult.outputDir}`);
+}
+async function runBuildApksCommand(config, jarPath, signing, logger) {
+  const buildResult = await logger.group("build-apks", async () => {
+    return buildApks({
+      config,
+      jarPath,
+      signing,
+      logger
+    });
+  });
+  const extractResult = await logger.group(
+    "Extract universal APK",
+    async () => {
+      return extractUniversalApk({
+        config,
+        apksPath: buildResult.apksPath,
+        logger
+      });
+    }
+  );
+  if (!extractResult?.apksDeleted) {
+    setOutput("apks-path", buildResult.apksPath);
+  }
+  if (extractResult) {
+    setOutput("apk-path", extractResult.apkPath);
+    if (config.outputDir) {
+      setOutput("output-dir", config.outputDir);
+    }
+  }
+  if (config.dryRun) {
+    logger.notice(
+      "Dry run complete - build-apks and extraction were planned but not executed."
+    );
+    return;
+  }
+  if (extractResult?.extracted) {
+    logger.notice(`Universal APK ready at ${extractResult.apkPath}`);
+  } else {
+    logger.notice(`APK set ready at ${buildResult.apksPath}`);
+  }
+}
 async function run() {
   const cleanup = new CleanupRegistry();
-  let logger = createLogger(false);
+  let logger = createLogger({ verbose: false });
   try {
     const { config, warnings } = parseInputs();
-    logger = createLogger(config.verbose);
+    logger = createLogger({ verbose: config.verbose });
     emitWarnings(logger, warnings);
     await logger.group("Configuration", () => {
       logPlannedSteps(logger, config);
@@ -34734,22 +34816,7 @@ async function run() {
     }
     const jarPath = installed.jarPath ?? "bundletool.jar";
     if (config.command === "extract-apks") {
-      const extractResult2 = await logger.group("extract-apks", async () => {
-        return extractApks({
-          config,
-          jarPath,
-          logger
-        });
-      });
-      setOutput("apks-path", extractResult2.apksPath);
-      setOutput("output-dir", extractResult2.outputDir);
-      if (config.dryRun) {
-        logger.notice(
-          "Dry run complete - extract-apks was planned but not executed."
-        );
-        return;
-      }
-      logger.notice(`Device APKs ready in ${extractResult2.outputDir}`);
+      await runExtractApksCommand(config, jarPath, logger);
       return;
     }
     const signing = await logger.group("Signing", async () => {
@@ -34764,44 +34831,7 @@ async function run() {
       logger.verbose(`Keystore ready at ${signing.keystorePath}`);
       logger.verbose(`Key alias: ${signing.keyAlias}`);
     }
-    const buildResult = await logger.group("build-apks", async () => {
-      return buildApks({
-        config,
-        jarPath,
-        signing,
-        logger
-      });
-    });
-    const extractResult = await logger.group(
-      "Extract universal APK",
-      async () => {
-        return extractUniversalApk({
-          config,
-          apksPath: buildResult.apksPath,
-          logger
-        });
-      }
-    );
-    if (!extractResult?.apksDeleted) {
-      setOutput("apks-path", buildResult.apksPath);
-    }
-    if (extractResult) {
-      setOutput("apk-path", extractResult.apkPath);
-      if (config.outputDir) {
-        setOutput("output-dir", config.outputDir);
-      }
-    }
-    if (config.dryRun) {
-      logger.notice(
-        "Dry run complete - build-apks and extraction were planned but not executed."
-      );
-      return;
-    }
-    if (extractResult?.extracted) {
-      logger.notice(`Universal APK ready at ${extractResult.apkPath}`);
-    } else {
-      logger.notice(`APK set ready at ${buildResult.apksPath}`);
-    }
+    await runBuildApksCommand(config, jarPath, signing, logger);
   } catch (error) {
     if (error instanceof ActionError || error instanceof Error) {
       setFailed(error.message);
@@ -34813,5 +34843,5 @@ async function run() {
   }
 }
 
-run();
+void run();
 //# sourceMappingURL=index.js.map

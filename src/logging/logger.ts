@@ -10,10 +10,22 @@ export interface Logger {
   group<T>(name: string, fn: () => Promise<T> | T): Promise<T>
 }
 
+export interface LoggerOptions {
+  verbose: boolean
+}
+
 /**
  * Thin wrapper around @actions/core logging with a verbose gate.
  */
-export function createLogger(verbose: boolean): Logger {
+export function createLogger(options: LoggerOptions): Logger {
+  const writeVerbose = options.verbose
+    ? (message: string): void => {
+        core.info(`[verbose] ${message}`)
+      }
+    : (message: string): void => {
+        core.debug(message)
+      }
+
   return {
     info(message: string): void {
       core.info(message)
@@ -31,11 +43,7 @@ export function createLogger(verbose: boolean): Logger {
       core.debug(message)
     },
     verbose(message: string): void {
-      if (verbose) {
-        core.info(`[verbose] ${message}`)
-      } else {
-        core.debug(message)
-      }
+      writeVerbose(message)
     },
     async group<T>(name: string, fn: () => Promise<T> | T): Promise<T> {
       core.startGroup(name)

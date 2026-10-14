@@ -20,52 +20,55 @@ export interface MaterializeSigningOptions {
   logger: Logger
 }
 
-async function resolveKeystorePath(
-  signing: SigningConfig,
-  workingDirectory: string,
+function decodeKeystoreBase64(keystoreBase64: string): Buffer {
+  let bytes: Buffer
+  try {
+    bytes = Buffer.from(keystoreBase64, 'base64')
+  } catch (error) {
+    throw new SigningError(
+      `Failed to decode keystore-base64: ${error instanceof Error ? error.message : String(error)}`
+    )
+  }
+
+  if (bytes.length === 0) {
+    throw new SigningError(
+      'Input "keystore-base64" decoded to an empty keystore.'
+    )
+  }
+
+  return bytes
+}
+
+async function materializeKeystoreFromBase64(
+  keystoreBase64: string,
   tempDir: string,
   cleanup: CleanupRegistry,
   logger: Logger
 ): Promise<string> {
-  if (signing.keystoreBase64) {
-    let bytes: Buffer
-    try {
-      bytes = Buffer.from(signing.keystoreBase64, 'base64')
-    } catch (error) {
-      throw new SigningError(
-        `Failed to decode keystore-base64: ${error instanceof Error ? error.message : String(error)}`
-      )
-    }
+  const bytes = decodeKeystoreBase64(keystoreBase64)
+  const keystorePath = resolve(tempDir, 'signing.keystore')
 
-    if (bytes.length === 0) {
-      throw new SigningError(
-        'Input "keystore-base64" decoded to an empty keystore.'
-      )
-    }
-
-    const keystorePath = resolve(tempDir, 'signing.keystore')
-    try {
-      await writeFile(keystorePath, bytes, { mode: 0o600 })
-    } catch (error) {
-      throw new SigningError(
-        `Failed to write decoded keystore: ${error instanceof Error ? error.message : String(error)}`
-      )
-    }
-
-    cleanup.register(keystorePath)
-    logger.info('Materialized keystore from keystore-base64')
-    return keystorePath
-  }
-
-  if (!signing.keystore) {
+  try {
+    await writeFile(keystorePath, bytes, { mode: 0o600 })
+  } catch (error) {
     throw new SigningError(
-      'Signing is enabled but neither "keystore" nor "keystore-base64" was provided.'
+      `Failed to write decoded keystore: ${error instanceof Error ? error.message : String(error)}`
     )
   }
 
-  const keystorePath = isAbsolute(signing.keystore)
-    ? signing.keystore
-    : resolve(workingDirectory, signing.keystore)
+  cleanup.register(keystorePath)
+  logger.info('Materialized keystore from keystore-base64')
+  return keystorePath
+}
+
+async function resolveExistingKeystorePath(
+  keystore: string,
+  workingDirectory: string,
+  logger: Logger
+): Promise<string> {
+  const keystorePath = isAbsolute(keystore)
+    ? keystore
+    : resolve(workingDirectory, keystore)
 
   try {
     await access(keystorePath)
@@ -75,6 +78,31 @@ async function resolveKeystorePath(
 
   logger.info(`Using keystore at ${keystorePath}`)
   return keystorePath
+}
+
+async function resolveKeystorePath(
+  signing: SigningConfig,
+  workingDirectory: string,
+  tempDir: string,
+  cleanup: CleanupRegistry,
+  logger: Logger
+): Promise<string> {
+  if (signing.keystoreBase64) {
+    return materializeKeystoreFromBase64(
+      signing.keystoreBase64,
+      tempDir,
+      cleanup,
+      logger
+    )
+  }
+
+  if (!signing.keystore) {
+    throw new SigningError(
+      'Signing is enabled but neither "keystore" nor "keystore-base64" was provided.'
+    )
+  }
+
+  return resolveExistingKeystorePath(signing.keystore, workingDirectory, logger)
 }
 
 /**

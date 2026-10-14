@@ -3,6 +3,10 @@ import { basename, dirname } from 'node:path'
 import { unzipSync } from 'fflate'
 import { ArtifactError } from '../errors.js'
 
+function normalizeZipEntryName(key: string): string {
+  return key.replaceAll('\\', '/')
+}
+
 /**
  * Extract a single entry from a zip archive to disk.
  */
@@ -30,17 +34,18 @@ export async function extractZipEntry(
   }
 
   const match = Object.keys(entries).find((key) => {
-    const name = key.replace(/\\/g, '/')
+    const name = normalizeZipEntryName(key)
     return name === entryName || basename(name) === entryName
   })
 
   if (!match || !entries[match]) {
     const available = Object.keys(entries)
-      .map((key) => basename(key.replace(/\\/g, '/')))
+      .map((key) => basename(normalizeZipEntryName(key)))
       .filter(Boolean)
       .join(', ')
+    const foundSuffix = available ? ` Found: ${available}` : ''
     throw new ArtifactError(
-      `Entry "${entryName}" not found in ${zipPath}.${available ? ` Found: ${available}` : ''}`
+      `Entry "${entryName}" not found in ${zipPath}.${foundSuffix}`
     )
   }
 

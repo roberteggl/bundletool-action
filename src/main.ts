@@ -11,7 +11,10 @@ import type { ActionConfig } from './config/types.js'
 import type { ConfigWarning } from './config/validate.js'
 import { ActionError } from './errors.js'
 import { createLogger, type Logger } from './logging/logger.js'
-import { materializeSigning } from './signing/keystore.js'
+import {
+  type MaterializedSigning,
+  materializeSigning
+} from './signing/keystore.js'
 
 function emitWarnings(logger: Logger, warnings: ConfigWarning[]): void {
   for (const warning of warnings) {
@@ -77,6 +80,83 @@ function logPlannedSteps(logger: Logger, config: ActionConfig): void {
   logger.info('  6. Set outputs and clean up temporary files')
 }
 
+async function runExtractApksCommand(
+  config: ActionConfig,
+  jarPath: string,
+  logger: Logger
+): Promise<void> {
+  const extractResult = await logger.group('extract-apks', async () => {
+    return extractApks({
+      config,
+      jarPath,
+      logger
+    })
+  })
+
+  core.setOutput('apks-path', extractResult.apksPath)
+  core.setOutput('output-dir', extractResult.outputDir)
+
+  if (config.dryRun) {
+    logger.notice(
+      'Dry run complete - extract-apks was planned but not executed.'
+    )
+    return
+  }
+
+  logger.notice(`Device APKs ready in ${extractResult.outputDir}`)
+}
+
+async function runBuildApksCommand(
+  config: ActionConfig,
+  jarPath: string,
+  signing: MaterializedSigning | undefined,
+  logger: Logger
+): Promise<void> {
+  const buildResult = await logger.group('build-apks', async () => {
+    return buildApks({
+      config,
+      jarPath,
+      signing,
+      logger
+    })
+  })
+
+  const extractResult = await logger.group(
+    'Extract universal APK',
+    async () => {
+      return extractUniversalApk({
+        config,
+        apksPath: buildResult.apksPath,
+        logger
+      })
+    }
+  )
+
+  if (!extractResult?.apksDeleted) {
+    core.setOutput('apks-path', buildResult.apksPath)
+  }
+
+  if (extractResult) {
+    core.setOutput('apk-path', extractResult.apkPath)
+    if (config.outputDir) {
+      core.setOutput('output-dir', config.outputDir)
+    }
+  }
+
+  if (config.dryRun) {
+    logger.notice(
+      'Dry run complete - build-apks and extraction were planned but not executed.'
+    )
+    return
+  }
+
+  if (extractResult?.extracted) {
+    logger.notice(`Universal APK ready at ${extractResult.apkPath}`)
+  } else {
+    logger.notice(`APK set ready at ${buildResult.apksPath}`)
+  }
+}
+
 /**
  * Main action entrypoint.
  *
@@ -84,11 +164,11 @@ function logPlannedSteps(logger: Logger, config: ActionConfig): void {
  */
 export async function run(): Promise<void> {
   const cleanup = new CleanupRegistry()
-  let logger = createLogger(false)
+  let logger = createLogger({ verbose: false })
 
   try {
     const { config, warnings } = parseInputs()
-    logger = createLogger(config.verbose)
+    logger = createLogger({ verbose: config.verbose })
 
     emitWarnings(logger, warnings)
 
@@ -120,25 +200,7 @@ export async function run(): Promise<void> {
     const jarPath = installed.jarPath ?? 'bundletool.jar'
 
     if (config.command === 'extract-apks') {
-      const extractResult = await logger.group('extract-apks', async () => {
-        return extractApks({
-          config,
-          jarPath,
-          logger
-        })
-      })
-
-      core.setOutput('apks-path', extractResult.apksPath)
-      core.setOutput('output-dir', extractResult.outputDir)
-
-      if (config.dryRun) {
-        logger.notice(
-          'Dry run complete - extract-apks was planned but not executed.'
-        )
-        return
-      }
-
-      logger.notice(`Device APKs ready in ${extractResult.outputDir}`)
+      await runExtractApksCommand(config, jarPath, logger)
       return
     }
 
@@ -156,49 +218,7 @@ export async function run(): Promise<void> {
       logger.verbose(`Key alias: ${signing.keyAlias}`)
     }
 
-    const buildResult = await logger.group('build-apks', async () => {
-      return buildApks({
-        config,
-        jarPath,
-        signing,
-        logger
-      })
-    })
-
-    const extractResult = await logger.group(
-      'Extract universal APK',
-      async () => {
-        return extractUniversalApk({
-          config,
-          apksPath: buildResult.apksPath,
-          logger
-        })
-      }
-    )
-
-    if (!extractResult?.apksDeleted) {
-      core.setOutput('apks-path', buildResult.apksPath)
-    }
-
-    if (extractResult) {
-      core.setOutput('apk-path', extractResult.apkPath)
-      if (config.outputDir) {
-        core.setOutput('output-dir', config.outputDir)
-      }
-    }
-
-    if (config.dryRun) {
-      logger.notice(
-        'Dry run complete - build-apks and extraction were planned but not executed.'
-      )
-      return
-    }
-
-    if (extractResult?.extracted) {
-      logger.notice(`Universal APK ready at ${extractResult.apkPath}`)
-    } else {
-      logger.notice(`APK set ready at ${buildResult.apksPath}`)
-    }
+    await runBuildApksCommand(config, jarPath, signing, logger)
   } catch (error) {
     if (error instanceof ActionError || error instanceof Error) {
       core.setFailed(error.message)

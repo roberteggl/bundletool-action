@@ -56,7 +56,7 @@ describe('extractApks', () => {
     const result = await extractApks({
       config: baseConfig({ workingDirectory: dir }),
       jarPath: '/cache/bundletool.jar',
-      logger: createLogger(false)
+      logger: createLogger({ verbose: false })
     })
 
     expect(result.executed).toBe(false)
@@ -77,7 +77,7 @@ describe('extractApks', () => {
     const result = await extractApks({
       config: baseConfig({ workingDirectory: dir, dryRun: false }),
       jarPath: '/cache/bundletool.jar',
-      logger: createLogger(false)
+      logger: createLogger({ verbose: false })
     })
 
     expect(result.executed).toBe(true)
@@ -94,7 +94,7 @@ describe('extractApks', () => {
       extractApks({
         config: baseConfig({ apksFile: undefined }),
         jarPath: '/cache/bundletool.jar',
-        logger: createLogger(false)
+        logger: createLogger({ verbose: false })
       })
     ).rejects.toThrow(/apks-file is required/)
   })
@@ -104,7 +104,7 @@ describe('extractApks', () => {
       extractApks({
         config: baseConfig({ deviceSpec: undefined }),
         jarPath: '/cache/bundletool.jar',
-        logger: createLogger(false)
+        logger: createLogger({ verbose: false })
       })
     ).rejects.toThrow(/device-spec is required/)
   })

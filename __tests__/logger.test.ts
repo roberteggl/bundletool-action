@@ -13,7 +13,7 @@ describe('createLogger', () => {
   })
 
   it('routes standard messages through @actions/core', () => {
-    const logger = createLogger(false)
+    const logger = createLogger({ verbose: false })
 
     logger.info('info')
     logger.notice('notice')
@@ -29,7 +29,7 @@ describe('createLogger', () => {
   })
 
   it('prints verbose messages at info level when verbose is enabled', () => {
-    const logger = createLogger(true)
+    const logger = createLogger({ verbose: true })
 
     logger.verbose('details')
 
@@ -38,7 +38,7 @@ describe('createLogger', () => {
   })
 
   it('prints verbose messages at debug level when verbose is disabled', () => {
-    const logger = createLogger(false)
+    const logger = createLogger({ verbose: false })
 
     logger.verbose('details')
 
@@ -47,7 +47,7 @@ describe('createLogger', () => {
   })
 
   it('wraps callbacks in a GitHub Actions log group', async () => {
-    const logger = createLogger(false)
+    const logger = createLogger({ verbose: false })
 
     const result = await logger.group('Step', async () => 'done')
 
