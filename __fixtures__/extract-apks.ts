@@ -3,8 +3,8 @@ import type { ExtractApksResult } from '../src/bundletool/commands/extract-apks.
 
 export const extractApks = vi.fn(
   async (): Promise<ExtractApksResult> => ({
-    apksPath: '/tmp/app.apks',
-    outputDir: '/tmp/out',
+    apksPath: '/runner/work/app.apks',
+    outputDir: '/runner/work/out',
     args: ['extract-apks'],
     executed: false
   })

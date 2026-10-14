@@ -71,10 +71,17 @@ jobs:
 
       - name: Create Android debug keystore
         run: |
+          # Standard Android debug keystore credentials (public, test-only).
+          store_pass='android'
+          key_pass='android'
           keytool -genkey -v -keystore "${{ runner.temp }}/debug.keystore" \
-            -storepass android -alias androiddebugkey -keypass android \
+            -storepass "$store_pass" -alias androiddebugkey -keypass "$key_pass" \
             -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
+          {
+            echo "ANDROID_DEBUG_STORE_PASS=$store_pass"
+            echo "ANDROID_DEBUG_KEY_PASS=$key_pass"
+          } >> "$GITHUB_ENV"
 
       - name: Test Local Action (dry-run)
         id: test-action-dry-run
@@ -122,9 +129,9 @@ jobs:
           bundletool-version: '1.18.3'
           sign: true
           keystore: ${{ runner.temp }}/debug.keystore
-          keystore-password: android
+          keystore-password: ${{ env.ANDROID_DEBUG_STORE_PASS }}
           key-alias: androiddebugkey
-          key-password: android
+          key-password: ${{ env.ANDROID_DEBUG_KEY_PASS }}
           mode: universal
           extract-universal-apk: true
           verbose: true
