@@ -27,8 +27,9 @@ pnpm bundle    # format + package dist/
 pnpm local-action   # uses .env (see .env.example)
 ```
 
-CI runs lint, typecheck, unit tests, `check-dist`, and an integration job with
-fixture AABs under `__fixtures__/android/`.
+CI runs lint, typecheck, unit tests, SonarCloud analysis (with Vitest LCOV
+coverage), `check-dist`, and an integration job with fixture AABs under
+`__fixtures__/android/`.
 
 ## Releasing
 
