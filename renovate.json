@@ -8,7 +8,9 @@
     ":semanticCommitScope(deps)"
   ],
   "labels": ["dependencies"],
-  "dependencyDashboard": true,
+  "dependencyDashboard": {
+    "enabled": true
+  },
   "rangeStrategy": "bump",
   "platformAutomerge": true,
   "packageRules": [
